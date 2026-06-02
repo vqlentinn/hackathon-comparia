@@ -57,3 +57,17 @@ test(R1): ajoute les contrôles de robustesse de convergence
 EOF
 )"
 ```
+
+## Documentation — Suivi projet
+
+```bash
+git add docs/project_status.md docs/commit_log.md
+git commit -m "$(cat <<'EOF'
+docs: ajoute le suivi projet et les hypothèses révisées
+
+- documente l'état du pipeline et les artefacts produits
+- consigne le résultat R1 brut et son interprétation
+- ajoute les hypothèses révisées et les prochaines analyses de robustesse
+EOF
+)"
+```

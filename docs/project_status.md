@@ -1,0 +1,547 @@
+# Project Status — L'Arène se mord la queue
+
+Dernière mise à jour : mardi 2 juin 2026, 17h45.
+
+Ce fichier sert de **source de vérité opérationnelle** pour suivre l'avancement du
+hackathon, les choix méthodologiques, les résultats déjà observés, les hypothèses
+à réviser et les prochaines décisions. Il est volontairement détaillé pour être
+relisible directement depuis Cursor/Dust sans reconstituer l'historique du chat.
+
+---
+
+## 1. Positionnement du projet
+
+### Titre
+
+**L'Arène se mord la queue : audit causal de Compar:IA à l'épreuve de la loi de Goodhart**
+
+### Thèse initiale
+
+Compar:IA, plateforme française d'évaluation de LLM par préférence humaine,
+devient une cible d'entraînement implicite des laboratoires d'IA. Les modèles
+optimisent alors les signaux gagnants de l'arène, notamment le style, ce qui
+peut dégrader progressivement la validité du benchmark.
+
+### Reformulation actuelle
+
+Après intégration du travail de Zilinskas, le projet devient une **extension
+temporelle, causale et prospective** de son analyse de biais de style sur
+Compar:IA.
+
+On ne refait pas son résultat principal global. On s'appuie dessus pour tester :
+
+- si le biais de style évolue dans le temps ;
+- si la diversité stylistique observée baisse vraiment ou si elle est masquée
+  par l'arrivée de nouveaux modèles ;
+- si un changement de style à contenu constant modifie causalement le jugement ;
+- si les tendances observées permettent une projection crédible.
+
+---
+
+## 2. Travail antérieur intégré
+
+### Source
+
+Dossier local :
+
+`style-control-analysis/`
+
+Fichier clé :
+
+`style-control-analysis/battles_bt_styled.parquet`
+
+### Ce que contient le parquet
+
+- 142 243 battles Compar:IA.
+- 89 modèles.
+- Colonnes de style Zilinskas :
+  - `headers_a`, `headers_b`
+  - `lists_a`, `lists_b`
+  - `bold_a`, `bold_b`
+  - `code_blocks_a`, `code_blocks_b`
+  - `emoji_a`, `emoji_b`
+- Colonnes de modèles :
+  - `model_a_name`
+  - `model_b_name`
+- Colonne outcome :
+  - `winner` avec valeurs `model_a`, `model_b`, `tie`
+- Colonne source :
+  - `vote`
+  - `reaction`
+
+### Ce que le parquet ne contient pas
+
+Il ne contient pas de `timestamp`. C'était le premier blocage pour R1/R2bis/R4.
+
+Solution implémentée : jointure des timestamps depuis HuggingFace
+`ministere-culture/comparia-votes`.
+
+---
+
+## 3. Setup technique
+
+### Environnement
+
+- Python utilisé : **3.12.12**
+- Venv : `.venv/`
+- Python 3.14 évité, car trop récent pour la stack scientifique
+  (`torch`, `spacy`, `numpyro`, `hdbscan`, `prophet`).
+
+### Accès API validés
+
+Le script `scripts/check_access.py` valide :
+
+- `HF_TOKEN` : OK
+- `MISTRAL_API_KEY` : OK
+- `GROQ_API_KEY` : OK
+- `ministere-culture/comparia-conversations` : OK
+- `ministere-culture/comparia-votes` : OK
+
+### Schémas HF réels validés
+
+`comparia-conversations` contient notamment :
+
+- `conversation_pair_id`
+- `timestamp`
+- `languages`
+- `opening_msg`
+- `conversation_a`
+- `conversation_b`
+- `model_a_name`
+- `model_b_name`
+
+`comparia-votes` contient notamment :
+
+- `conversation_pair_id`
+- `timestamp`
+- `chosen_model_name`
+- `both_equal`
+- `model_a_name`
+- `model_b_name`
+
+Important : la spec initiale parlait de `preference`. Le schéma réel n'a pas de
+colonne `preference`. Le gagnant est à reconstruire via `chosen_model_name` et
+`both_equal`.
+
+---
+
+## 4. Artefacts produits
+
+### Scripts
+
+- `scripts/check_access.py`
+  - valide `.env`, HF, Mistral, Groq ;
+  - affiche les colonnes réelles HF ;
+  - supporte `mistralai >= 2.x`.
+
+- `scripts/join_timestamps.py`
+  - stream `comparia-votes` ;
+  - extrait `conversation_pair_id` + `timestamp` ;
+  - cache le résultat ;
+  - joint avec le parquet Zilinskas ;
+  - produit `battles_with_dates.parquet`.
+
+### Modules Python
+
+- `src/compariawatch/data.py`
+  - `load_battles_zilinskas`
+  - `fetch_vote_timestamps`
+  - `join_battles_with_dates`
+
+- `src/compariawatch/diversity.py`
+  - `battles_to_long`
+  - `standardize_features`
+  - `compute_monthly_diversity`
+  - `mean_centroid_diversity`
+  - `wasserstein_diversity`
+
+### Notebooks
+
+- `notebooks/01_validation_zilinskas.ipynb`
+  - sanity check du parquet Zilinskas ;
+  - reproduction des coefficients BT style-controlled.
+
+- `notebooks/02_timestamp_join.ipynb`
+  - jointure timestamps ;
+  - EDA mensuelle ;
+  - contrôle couverture temporelle.
+
+- `notebooks/03_R1_convergence.ipynb`
+  - diversité stylistique mensuelle ;
+  - OLS ;
+  - figure R1.
+
+### Données intermédiaires
+
+Gitignored localement :
+
+- `data/raw/votes_timestamps.parquet`
+- `data/interim/battles_with_dates.parquet`
+- `data/processed/diversity_temporal.parquet`
+
+### Figures
+
+Gitignored localement :
+
+- `paper/figures/R1_convergence.png`
+- `paper/figures/EDA_battles_monthly.png`
+
+---
+
+## 5. Résultats obtenus
+
+### 5.1 Sanity check Zilinskas
+
+Méthode répliquée depuis `clean_and_analyze.py` :
+
+- modèle Bradley-Terry via régression logistique ;
+- `X_model = +1/-1` pour les deux modèles ;
+- `y = 1` si `model_a` gagne, `0` sinon ;
+- `X_style = style_a - style_b`, standardisé ;
+- pas de miroir artificiel des observations.
+
+Résultat local :
+
+| Feature | Effet local approximatif | Référence attendue |
+|---|---:|---:|
+| headers | +15.3 % / SD | ~+15.6 % |
+| lists | +18.8 % / SD | ~+18 % |
+| bold | +16.8 % / SD | ~+19 % |
+| code_blocks | ~+0.8 % / SD | ~0 % |
+| emoji | ~+2.4 % / SD | ~0 % |
+
+Conclusion : le pipeline BT style-controlled est validé.
+
+### 5.2 Jointure timestamps
+
+Résultat :
+
+- votes streamés : ~149k ;
+- battles Zilinskas : 142 243 ;
+- battles avec timestamp : 114 626 ;
+- match rate : **80.6 %** ;
+- explication du non-match : battles `source=reaction` absentes de
+  `comparia-votes`.
+
+Cohortes temporelles :
+
+- 18 mois disponibles ;
+- période observée : oct. 2024 à fév. 2026 ;
+- pour R1 décisif + timestamp : 79 075 battles.
+
+### 5.3 R1 brute — Convergence stylistique
+
+Définition actuelle :
+
+- format long : une ligne = une réponse modèle ;
+- features : 5 features style Zilinskas ;
+- z-score global ;
+- centroïde stylistique par `(model, month)` ;
+- diversité mensuelle `D_t` = distance euclidienne moyenne entre centroïdes de
+  modèles.
+
+Résultat OLS :
+
+| Métrique | Valeur |
+|---|---:|
+| battles utilisées | 79 075 |
+| cohortes | 17 |
+| pente mensuelle `β` | +0.057 |
+| p-value | < 0.001 |
+| R² | 0.925 |
+
+Conclusion brute :
+
+**H1 initiale non confirmée.** La diversité stylistique brute augmente dans le
+temps, au lieu de diminuer.
+
+---
+
+## 6. Interprétation actuelle de R1
+
+### Ce qu'on ne doit pas dire
+
+On ne peut pas écrire simplement :
+
+> "La diversité augmente, donc la thèse est fausse."
+
+Ce serait trop rapide, car la composition de l'arène change fortement dans le
+temps.
+
+### Explication probable
+
+La diversité brute augmente parce que de nouveaux modèles et familles entrent
+progressivement dans Compar:IA. Le nombre de modèles par mois augmente fortement,
+ce qui peut mécaniquement augmenter la distance moyenne entre centroïdes.
+
+Exemples observés :
+
+- octobre 2024 : 19 modèles ;
+- mars-avril 2025 : 32-39 modèles ;
+- octobre 2025 : 47 modèles.
+
+### Décision méthodologique
+
+R1 doit être reformulé en deux niveaux :
+
+1. **R1a — diversité brute**
+   - résultat observé : hausse ;
+   - interprétation : expansion de l'arène / arrivée de modèles.
+
+2. **R1b — diversité conditionnelle**
+   - question : à composition contrôlée, observe-t-on une convergence ?
+   - tests à faire :
+     - contrôle `n_models` et `n_responses` ;
+     - modèles présents sur plusieurs mois ;
+     - cohortes trimestrielles ;
+     - sous-échantillon modèles récurrents ;
+     - éventuellement familles de modèles.
+
+Ce pivot est important : il transforme une contradiction apparente en résultat
+plus robuste.
+
+---
+
+## 7. Hypothèses révisées
+
+### H1 initiale
+
+> La diversité stylistique inter-modèles décroît dans le temps.
+
+Statut :
+
+**Non confirmée en brut.**
+
+### H1a — nouvelle hypothèse descriptive
+
+> La diversité brute augmente avec l'expansion de l'arène, car l'arrivée de
+> nouveaux modèles augmente l'hétérogénéité observée.
+
+Test :
+
+```text
+diversity ~ month_idx
+```
+
+Statut :
+
+**Supportée par les premiers résultats.**
+
+### H1b — hypothèse Goodhart conditionnelle
+
+> À composition contrôlée, ou au sein des modèles/familles récurrents, la
+> diversité stylistique décroît.
+
+Tests à faire :
+
+```text
+diversity ~ month_idx + n_models + n_responses
+```
+
+et :
+
+```text
+diversity sur modèles présents au moins K mois
+```
+
+Statut :
+
+**À tester immédiatement.**
+
+### H2 / R2bis — Style Premium longitudinal
+
+> Les coefficients BT de style (`bold`, `lists`, `headers`) augmentent dans le
+> temps.
+
+Statut :
+
+Pas encore testé.
+
+Priorité :
+
+Haute, car c'est probablement plus directement relié à Goodhart que la diversité
+brute.
+
+### H3 / R3 — effet causal du style
+
+> À contenu sémantiquement constant, le style verbose/markdown augmente la
+> préférence du juge.
+
+Statut :
+
+Pas encore testé.
+
+Précondition :
+
+Accès Mistral et Groq validés. Il reste à extraire les textes depuis
+`comparia-conversations`.
+
+### H4 / R4 — forecast
+
+> On peut projeter une date de perte de pouvoir discriminant à partir de la série
+> temporelle de diversité.
+
+Statut :
+
+À différer tant que R1 n'est pas stabilisé. Si R1 brute augmente, forecast
+d'effondrement impossible tel quel ; il faudra forecaster une métrique corrigée.
+
+---
+
+## 8. Risques critiques actualisés
+
+### Risque 1 — R1 contredit la thèse brute
+
+Impact : élevé.
+
+Mitigation :
+
+- ne pas masquer le résultat ;
+- le présenter comme "expansion de l'arène" ;
+- tester la convergence conditionnelle.
+
+### Risque 2 — 17/18 cohortes seulement
+
+Impact : moyen/élevé.
+
+Mitigation :
+
+- rester prudent sur les p-values ;
+- utiliser tendances et intervalles ;
+- éviter les conclusions fortes sur forecast.
+
+### Risque 3 — R3 peut consommer du budget API
+
+Impact : moyen.
+
+Mitigation :
+
+- smoke test sur 10 réponses ;
+- batch sauvegardé toutes les 50 itérations ;
+- fallback Groq ;
+- commencer par 100 paires avant 500.
+
+### Risque 4 — confusion style vs qualité réelle
+
+Impact : élevé.
+
+Mitigation :
+
+- citer Zilinskas : style = médiateur et confondeur partiel ;
+- ne pas prétendre que tout style est biais ;
+- R3 par contrefactuels pour isoler le style à contenu constant.
+
+---
+
+## 9. Prochaine étape recommandée
+
+Priorité immédiate :
+
+**R1b — robustesse et contrôles.**
+
+Objectif :
+
+Savoir si le résultat R1 est :
+
+- une vraie divergence stylistique ;
+- un artefact d'entrée de nouveaux modèles ;
+- ou une convergence conditionnelle masquée.
+
+Analyses à produire :
+
+1. OLS contrôlée :
+
+```text
+diversity ~ month_idx + n_models + n_responses
+```
+
+2. Corrélation :
+
+```text
+diversity vs n_models
+```
+
+3. Modèles récurrents :
+
+```text
+garder les modèles présents dans au moins 6 mois
+```
+
+4. Cohortes trimestrielles :
+
+```text
+quarterly_diversity
+```
+
+5. Figure :
+
+`paper/figures/R1_convergence_robustness.png`
+
+Output :
+
+`data/processed/diversity_temporal_robustness.parquet`
+
+---
+
+## 10. État des commits
+
+### Déjà poussé
+
+Commit setup :
+
+```text
+chore: initialise le repo ComparIA hackathon
+```
+
+### À pousser
+
+Commit R1 :
+
+```text
+feat(R1): mesure la diversité stylistique mensuelle
+```
+
+Voir commandes prêtes à copier-coller dans :
+
+`docs/commit_log.md`
+
+### À ajouter au prochain commit docs
+
+Ce fichier :
+
+`docs/project_status.md`
+
+Commit suggéré :
+
+```text
+docs: ajoute le suivi projet et les hypothèses révisées
+```
+
+Bullets :
+
+- documente l'état du pipeline et les artefacts produits
+- consigne le résultat R1 brut et son interprétation
+- ajoute les hypothèses révisées et les prochaines analyses de robustesse
+
+---
+
+## 11. Décision de pitch provisoire
+
+Si R1b confirme une convergence conditionnelle :
+
+> "La diversité brute augmente parce que l'arène s'élargit. Mais à composition
+> contrôlée, les modèles récurrents convergent stylistiquement."
+
+Si R1b ne confirme pas :
+
+> "Nous ne trouvons pas encore de convergence stylistique globale. En revanche,
+> le style a déjà un effet mesurable sur la préférence, et le cœur causal du
+> projet se déplace vers R2bis/R3."
+
+Dans les deux cas, ne pas forcer la thèse. Le projet reste valable si on montre
+que :
+
+- le style influence les votes ;
+- cette influence évolue ;
+- les classements doivent être corrigés ou audités.
+
