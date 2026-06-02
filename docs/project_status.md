@@ -1,6 +1,6 @@
 # Project Status — L'Arène se mord la queue
 
-Dernière mise à jour : mardi 2 juin 2026, 17h50.
+Dernière mise à jour : mardi 2 juin 2026, 18h00.
 
 Ce fichier sert de **source de vérité opérationnelle** pour suivre l'avancement du
 hackathon, les choix méthodologiques, les résultats déjà observés, les hypothèses
@@ -327,6 +327,58 @@ repositionner R1 comme un résultat négatif mais informatif : l'arène n'est pa
 encore en convergence globale ; elle est plutôt en phase d'expansion et de
 différenciation stylistique.
 
+### 5.5 R2bis — Style Premium longitudinal
+
+Script :
+
+`scripts/r2bis_style_premium.py`
+
+Module :
+
+`src/compariawatch/style_premium.py`
+
+Notebook :
+
+`notebooks/04_R2bis_style_premium.ipynb`
+
+Outputs :
+
+- `data/processed/style_premium_temporal.parquet`
+- `data/processed/style_premium_trends.parquet`
+- `paper/figures/R2bis_style_premium_longitudinal.png`
+
+Méthode :
+
+- battles décisives avec timestamp : 79 075 ;
+- 17 cohortes mensuelles ;
+- Bradley-Terry style-controlled par mois ;
+- features : `headers`, `lists`, `bold`, `code_blocks`, `emoji` ;
+- bootstrap par cohorte : `n_boot=40` ;
+- tendance : OLS `odds_pct ~ month_idx` par feature.
+
+Résultats :
+
+| Feature | Style Premium moyen | Pente mensuelle | p-value | Lecture |
+|---|---:|---:|---:|---|
+| `bold` | +19.8 % | -1.40 pts/mois | 0.013 | diminue significativement |
+| `lists` | +14.6 % | -0.79 pts/mois | 0.031 | diminue significativement |
+| `headers` | +14.5 % | +0.48 pts/mois | 0.546 | stable / non significatif |
+| `code_blocks` | +4.4 % | -0.75 pts/mois | 0.015 | diminue, effet moyen faible |
+| `emoji` | +5.2 % | +0.35 pts/mois | 0.401 | non significatif |
+
+Conclusion R2bis :
+
+Le Style Premium est **réel en niveau** : les effets moyens de `bold`, `lists`
+et `headers` restent autour de +14 % à +20 % d'odds de victoire par écart-type.
+En revanche, il ne croît pas dans le temps. Au contraire, `bold` et `lists`
+diminuent significativement sur la période observée.
+
+Conséquence :
+
+H2 ("le style premium augmente dans le temps") n'est pas confirmée. Le résultat
+reste utile : il montre que le style influence déjà fortement les votes, mais
+que le signal de Goodhart temporel n'est pas visible sur ces features simples.
+
 ---
 
 ## 6. Interprétation actuelle de R1
@@ -444,12 +496,12 @@ Statut :
 
 Statut :
 
-Pas encore testé.
+**Non confirmée en tendance, mais effet moyen robuste.**
 
 Priorité :
 
-Haute, car c'est probablement plus directement relié à Goodhart que la diversité
-brute.
+Le style premium existe en niveau (`bold` ~+20 %, `lists/headers` ~+14-15 %),
+mais il ne s'accroît pas. La preuve Goodhart temporelle reste donc faible.
 
 ### H3 / R3 — effet causal du style
 
@@ -475,7 +527,8 @@ Statut :
 À dégrader fortement. Comme R1/R1b augmentent, un forecast d'effondrement basé
 sur la diversité globale n'a pas de sens en l'état. Deux fallbacks :
 
-- forecaster le **style premium** si R2bis montre une hausse ;
+- forecaster le **style premium** n'a pas de sens tel quel car R2bis ne montre
+  pas de hausse ;
 - forecaster la **part explicative du style** plutôt que la diversité.
 
 ---
@@ -531,18 +584,23 @@ Mitigation :
 
 Priorité immédiate :
 
-**R2bis — Style Premium longitudinal.**
+**R3 — Preuve causale par contrefactuels.**
 
 Objectif :
 
-Tester si les coefficients BT de style (`bold`, `lists`, `headers`) augmentent
-mois après mois. C'est le signal Goodhart le plus prometteur maintenant que R1
-ne confirme pas la convergence.
+Tester si le style modifie la préférence à contenu constant.
 
 Output attendu :
 
-- `data/processed/style_premium_temporal.parquet`
-- `paper/figures/R2bis_style_premium_longitudinal.png`
+- `data/interim/rewrites_smoke.parquet`
+- `data/processed/causal_style_votes.parquet`
+- `paper/figures/R3_style_premium.png`
+
+Pourquoi :
+
+R1 ne confirme pas la convergence. R2bis confirme un effet moyen du style, mais
+pas sa croissance temporelle. Le meilleur résultat à aller chercher maintenant
+est donc causal : à contenu constant, le style change-t-il la préférence ?
 
 ---
 
@@ -574,6 +632,12 @@ Commit R1b :
 test(R1): ajoute les contrôles de robustesse de convergence
 ```
 
+Commit R2bis :
+
+```text
+feat(R2bis): mesure le Style Premium longitudinal
+```
+
 ### À ajouter au prochain commit docs
 
 Ce fichier :
@@ -598,11 +662,12 @@ Bullets :
 
 R1b ne confirme pas la convergence conditionnelle. Pitch provisoire :
 
-> "Nous ne trouvons pas encore de convergence stylistique globale. Au contraire,
-> Compar:IA est encore en expansion stylistique. Mais c'est précisément pour cela
-> qu'il faut auditer le style : si certains formats donnent déjà un avantage de
-> préférence dans une arène encore diverse, alors le classement est vulnérable à
-> l'optimisation stratégique."
+> "Nous ne trouvons pas encore de convergence stylistique globale ni de hausse
+> temporelle du style premium. En revanche, le niveau du biais de style est déjà
+> élevé : bold, listes et headers donnent encore environ +14 à +20 % d'odds de
+> victoire par écart-type. La prochaine étape est donc causale : vérifier, par
+> contrefactuels à contenu constant, si ce premium persiste quand on neutralise
+> le contenu."
 
 Dans les deux cas, ne pas forcer la thèse. Le projet reste valable si on montre
 que :

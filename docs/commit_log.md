@@ -73,3 +73,18 @@ docs: ajoute le suivi projet et les hypothèses révisées
 EOF
 )"
 ```
+
+## Phase R2bis — Style Premium longitudinal
+
+```bash
+git add src/compariawatch/style_premium.py scripts/r2bis_style_premium.py notebooks/04_R2bis_style_premium.ipynb docs/project_status.md docs/commit_log.md
+git add -f data/processed/style_premium_temporal.parquet data/processed/style_premium_trends.parquet paper/figures/R2bis_style_premium_longitudinal.png
+git commit -m "$(cat <<'EOF'
+feat(R2bis): mesure le Style Premium longitudinal
+
+- recalcule les coefficients Bradley-Terry style-controlled par mois
+- teste la tendance temporelle de bold, lists et headers avec bootstrap
+- produit les parquets R2bis et la figure longitudinale
+EOF
+)"
+```
