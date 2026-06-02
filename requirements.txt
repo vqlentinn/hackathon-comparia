@@ -1,0 +1,71 @@
+# =========================================================================
+# arene-mord-queue -- dépendances (Python 3.12)
+# Installation : .venv/bin/pip install -r requirements.txt
+# Reproductibilité exacte : voir requirements.lock (généré via pip freeze)
+# Contraintes = compatibles 3.12. Groupées par usage (cf. spec section 8.3).
+# =========================================================================
+
+# --- Data ---
+pandas>=2.2,<3
+polars>=1.0,<2
+numpy>=1.26,<2          # <2 : compat torch/spacy/numpyro plus sûre
+scipy>=1.11,<2
+pyarrow>=15
+
+# --- HuggingFace (ingestion datasets gated) ---
+datasets>=2.19,<3
+huggingface-hub>=0.23
+
+# --- NLP symbolique (features stylo) ---
+spacy>=3.7,<3.8
+textstat>=0.7
+regex>=2024.0
+
+# --- NLP transformer (zero-shot : embeddings + NLI) ---
+sentence-transformers>=2.7,<3
+transformers>=4.40,<5
+torch>=2.2
+
+# --- Topic modeling ---
+bertopic>=0.16
+umap-learn>=0.5
+hdbscan>=0.8.33
+
+# --- Stats / Causal ---
+statsmodels>=0.14
+scikit-learn>=1.4
+bambi>=0.13            # tire pymc
+dowhy>=0.11
+econml>=0.15
+POT>=0.9              # optimal transport (Wasserstein)
+
+# --- Bayésien / Forecast ---
+numpyro>=0.14
+prophet>=1.1          # fallback forecast
+
+# --- ML supervisé (validation) ---
+xgboost>=2.0
+shap>=0.45
+
+# --- API LLM ---
+mistralai>=1.0
+groq>=0.9
+openai>=1.0
+
+# --- Visualisation ---
+matplotlib>=3.8
+seaborn>=0.13
+plotly>=5.20
+altair>=5.0
+
+# --- Démo ---
+streamlit>=1.32
+
+# --- Dev / utils ---
+python-dotenv>=1.0
+jupyter
+ipykernel
+tqdm
+swifter
+pytest>=8.0
+ruff>=0.4
