@@ -1,6 +1,6 @@
 # Project Status — L'Arène se mord la queue
 
-Dernière mise à jour : mardi 2 juin 2026, 18h10.
+Dernière mise à jour : mardi 2 juin 2026, 18h20.
 
 Ce fichier sert de **source de vérité opérationnelle** pour suivre l'avancement du
 hackathon, les choix méthodologiques, les résultats déjà observés, les hypothèses
@@ -427,6 +427,61 @@ Le style `verbose_markdown` allonge très fortement les réponses. R3 devra donc
 contrôler explicitement la longueur ou comparer aussi `verbose_markdown` vs
 `neutre_baseline` en interprétant l'effet comme un bundle style+longueur.
 
+### 5.7 R3 — Scoring smoke (cosine + LLM judge)
+
+Script :
+
+`scripts/r3_score_smoke.py`
+
+Module :
+
+`src/compariawatch/judge.py`
+
+Outputs :
+
+- `data/interim/rewrites_smoke_scored.parquet`
+- `data/processed/causal_style_votes_smoke.parquet`
+- `paper/figures/R3_style_premium_smoke.png`
+
+Validation sémantique cosine :
+
+| Style | Cosine moyen | Taux `cosine >= 0.85` |
+|---|---:|---:|
+| `concise_direct` | 0.865 | 70 % |
+| `neutre_baseline` | 0.845 | 60 % |
+| `verbose_markdown` | 0.856 | 50 % |
+
+Judge smoke :
+
+Comparaison de chaque style cible contre `neutre_baseline`.
+
+| Style cible vs neutre | N | Victoire style | Victoire neutre | Tie |
+|---|---:|---:|---:|---:|
+| `concise_direct` | 10 | 100 % | 0 % | 0 % |
+| `verbose_markdown` | 10 | 10 % | 90 % | 0 % |
+
+Lecture :
+
+Le signal causal de smoke est très fort, mais il va dans une direction
+différente de l'intuition initiale : le juge préfère massivement la version
+concise à la version neutre, et pénalise la version verbose-markdown.
+
+Limites :
+
+- N=10 seulement ;
+- cosine insuffisant pour une partie des réécritures ;
+- juge Mistral peut avoir un biais contre le verbiage ;
+- `verbose_markdown` change fortement la longueur.
+
+Décision :
+
+R3 devient le cœur empirique. Il faut passer à N=100 avec :
+
+- filtrage cosine strict ;
+- comparaison `concise_direct` vs `neutre_baseline` ;
+- comparaison `verbose_markdown` vs `neutre_baseline` ;
+- analyse longueur comme médiateur.
+
 ---
 
 ## 6. Interprétation actuelle de R1
@@ -637,20 +692,22 @@ Priorité immédiate :
 
 Objectif :
 
-Tester la préservation sémantique puis le jugement LLM sur les contrefactuels
-déjà générés.
+Passer du smoke N=10 à un batch N=100, en gardant les sauvegardes
+incrémentales et le filtrage cosine.
 
 Output attendu :
 
-- `data/interim/rewrites_smoke_scored.parquet`
-- `data/processed/causal_style_votes.parquet`
-- `paper/figures/R3_style_premium.png`
+- `data/interim/rewrites_n100.parquet`
+- `data/interim/rewrites_n100_scored.parquet`
+- `data/processed/causal_style_votes_n100.parquet`
+- `paper/figures/R3_style_premium_n100.png`
 
 Pourquoi :
 
 R1 ne confirme pas la convergence. R2bis confirme un effet moyen du style, mais
-pas sa croissance temporelle. Le meilleur résultat à aller chercher maintenant
-est donc causal : à contenu constant, le style change-t-il la préférence ?
+pas sa croissance temporelle. Le smoke R3 montre un signal causal très fort :
+la concision est préférée à la version neutre, tandis que le verbose-markdown
+est pénalisé.
 
 ---
 
@@ -694,6 +751,12 @@ Commit R3 smoke :
 feat(R3): valide le smoke test de contrefactuels
 ```
 
+Commit R3 scoring smoke :
+
+```text
+feat(R3): score les contrefactuels smoke
+```
+
 ### À ajouter au prochain commit docs
 
 Ce fichier :
@@ -719,11 +782,11 @@ Bullets :
 R1b ne confirme pas la convergence conditionnelle. Pitch provisoire :
 
 > "Nous ne trouvons pas encore de convergence stylistique globale ni de hausse
-> temporelle du style premium. En revanche, le niveau du biais de style est déjà
-> élevé : bold, listes et headers donnent encore environ +14 à +20 % d'odds de
-> victoire par écart-type. La prochaine étape est donc causale : vérifier, par
-> contrefactuels à contenu constant, si ce premium persiste quand on neutralise
-> le contenu."
+> temporelle du style premium. En revanche, le style influence bien la préférence :
+> les features de formatage ont un effet moyen de +14 à +20 % dans les données
+> observationnelles, et notre smoke causal montre que changer le style à contenu
+> proche peut renverser le jugement. Fait intéressant, le juge ne récompense pas
+> le markdown verbose : il préfère la concision."
 
 Dans les deux cas, ne pas forcer la thèse. Le projet reste valable si on montre
 que :

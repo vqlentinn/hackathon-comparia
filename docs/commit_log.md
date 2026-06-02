@@ -103,3 +103,18 @@ feat(R3): valide le smoke test de contrefactuels
 EOF
 )"
 ```
+
+## Phase R3 — Scoring smoke
+
+```bash
+git add src/compariawatch/judge.py scripts/r3_score_smoke.py docs/project_status.md docs/commit_log.md
+git add -f data/interim/rewrites_smoke_scored.parquet data/processed/causal_style_votes_smoke.parquet paper/figures/R3_style_premium_smoke.png
+git commit -m "$(cat <<'EOF'
+feat(R3): score les contrefactuels smoke
+
+- calcule la similarité cosine original/réécriture sur les 30 contrefactuels
+- juge concise et verbose contre neutre avec ordre A/B randomisé
+- produit les votes smoke et la figure R3 provisoire
+EOF
+)"
+```
