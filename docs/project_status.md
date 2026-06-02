@@ -1,6 +1,6 @@
 # Project Status — L'Arène se mord la queue
 
-Dernière mise à jour : mardi 2 juin 2026, 17h45.
+Dernière mise à jour : mardi 2 juin 2026, 17h50.
 
 Ce fichier sert de **source de vérité opérationnelle** pour suivre l'avancement du
 hackathon, les choix méthodologiques, les résultats déjà observés, les hypothèses
@@ -255,6 +255,78 @@ Conclusion brute :
 **H1 initiale non confirmée.** La diversité stylistique brute augmente dans le
 temps, au lieu de diminuer.
 
+### 5.4 R1b — Robustesses et contrôles
+
+Script :
+
+`scripts/r1_robustness.py`
+
+Outputs :
+
+- `data/processed/diversity_temporal_robustness.parquet`
+- `paper/figures/R1_convergence_robustness.png`
+
+Tests effectués :
+
+1. OLS brute :
+
+```text
+diversity ~ month_idx
+```
+
+2. OLS contrôlée :
+
+```text
+diversity ~ month_idx + n_models + n_responses
+```
+
+3. Corrélations avec la composition de l'arène :
+
+```text
+corr(diversity, n_models)
+corr(diversity, n_responses)
+```
+
+4. Sous-échantillon modèles récurrents :
+
+```text
+garder les modèles présents dans au moins 6 mois
+```
+
+5. Cohortes trimestrielles :
+
+```text
+diversity par quarter
+```
+
+Résultats :
+
+| Spécification | Pente temporelle | p-value | R² | Lecture |
+|---|---:|---:|---:|---|
+| mensuelle brute | +0.0572 | < 0.001 | 0.925 | diversité en hausse |
+| mensuelle contrôlée | +0.0466 | < 0.001 | 0.961 | hausse persiste |
+| modèles récurrents ≥6 mois | +0.0412 | < 0.001 | 0.529 | hausse persiste |
+| trimestrielle | +0.1575 | 0.001 | 0.942 | hausse persiste |
+
+Corrélations :
+
+| Variable | Corrélation avec diversité |
+|---|---:|
+| `n_models` | +0.826 |
+| `n_responses` | -0.041 |
+
+Conclusion R1b :
+
+La diversité stylistique **augmente robustement**. L'arrivée de nouveaux modèles
+explique une partie de la hausse (`n_models` corrélé à +0.826), mais ne suffit
+pas à l'annuler : la tendance temporelle reste positive après contrôle et sur
+les modèles récurrents.
+
+Cela réfute la version simple de H1 ("convergence stylistique globale"). Il faut
+repositionner R1 comme un résultat négatif mais informatif : l'arène n'est pas
+encore en convergence globale ; elle est plutôt en phase d'expansion et de
+différenciation stylistique.
+
 ---
 
 ## 6. Interprétation actuelle de R1
@@ -268,17 +340,22 @@ On ne peut pas écrire simplement :
 Ce serait trop rapide, car la composition de l'arène change fortement dans le
 temps.
 
-### Explication probable
+### Explication testée
 
-La diversité brute augmente parce que de nouveaux modèles et familles entrent
-progressivement dans Compar:IA. Le nombre de modèles par mois augmente fortement,
-ce qui peut mécaniquement augmenter la distance moyenne entre centroïdes.
+La diversité brute augmente en partie parce que de nouveaux modèles et familles
+entrent progressivement dans Compar:IA. Le nombre de modèles par mois augmente
+fortement, ce qui peut mécaniquement augmenter la distance moyenne entre
+centroïdes.
 
 Exemples observés :
 
 - octobre 2024 : 19 modèles ;
 - mars-avril 2025 : 32-39 modèles ;
 - octobre 2025 : 47 modèles.
+
+Les robustesses montrent cependant que cette explication n'est pas suffisante :
+la tendance reste positive après contrôle de `n_models` et `n_responses`, et
+reste positive sur les modèles récurrents.
 
 ### Décision méthodologique
 
@@ -289,16 +366,14 @@ R1 doit être reformulé en deux niveaux :
    - interprétation : expansion de l'arène / arrivée de modèles.
 
 2. **R1b — diversité conditionnelle**
-   - question : à composition contrôlée, observe-t-on une convergence ?
-   - tests à faire :
-     - contrôle `n_models` et `n_responses` ;
-     - modèles présents sur plusieurs mois ;
-     - cohortes trimestrielles ;
-     - sous-échantillon modèles récurrents ;
-     - éventuellement familles de modèles.
+   - résultat observé : toujours hausse ;
+   - interprétation : pas de convergence globale détectable sur la période ;
+   - conséquence : ne pas fonder le pitch sur R1 comme preuve de convergence.
 
-Ce pivot est important : il transforme une contradiction apparente en résultat
-plus robuste.
+Ce pivot est important : R1 devient une **borne empirique**. Il ne soutient pas
+la convergence globale, mais il montre que l'arène est encore en phase
+d'expansion stylistique. Le cœur Goodhart doit donc venir de R2bis/R3 :
+croissance du style premium et preuve causale par contrefactuels.
 
 ---
 
@@ -310,7 +385,7 @@ plus robuste.
 
 Statut :
 
-**Non confirmée en brut.**
+**Réfutée sur la période observée, en brut et après robustesses.**
 
 ### H1a — nouvelle hypothèse descriptive
 
@@ -325,7 +400,8 @@ diversity ~ month_idx
 
 Statut :
 
-**Supportée par les premiers résultats.**
+**Supportée partiellement.** `n_models` est fortement corrélé à la diversité
+(+0.826), mais la pente temporelle reste positive après contrôle.
 
 ### H1b — hypothèse Goodhart conditionnelle
 
@@ -346,7 +422,20 @@ diversity sur modèles présents au moins K mois
 
 Statut :
 
-**À tester immédiatement.**
+**Non confirmée.** Les modèles récurrents (présents au moins 6 mois) gardent une
+tendance positive (`β=+0.0412`, `p<0.001`).
+
+### H1c — nouvelle formulation conservatrice pour le papier
+
+> Sur la période observée, Compar:IA ne montre pas encore de convergence
+> stylistique globale ; l'arène semble plutôt en expansion stylistique. Cette
+> absence de convergence rend d'autant plus important le test causal du style :
+> si le style influence déjà les votes malgré une diversité croissante, le
+> benchmark reste vulnérable à Goodhart.
+
+Statut :
+
+**À adopter pour le pitch si R2bis/R3 confirment l'effet du style.**
 
 ### H2 / R2bis — Style Premium longitudinal
 
@@ -383,8 +472,11 @@ Accès Mistral et Groq validés. Il reste à extraire les textes depuis
 
 Statut :
 
-À différer tant que R1 n'est pas stabilisé. Si R1 brute augmente, forecast
-d'effondrement impossible tel quel ; il faudra forecaster une métrique corrigée.
+À dégrader fortement. Comme R1/R1b augmentent, un forecast d'effondrement basé
+sur la diversité globale n'a pas de sens en l'état. Deux fallbacks :
+
+- forecaster le **style premium** si R2bis montre une hausse ;
+- forecaster la **part explicative du style** plutôt que la diversité.
 
 ---
 
@@ -398,7 +490,9 @@ Mitigation :
 
 - ne pas masquer le résultat ;
 - le présenter comme "expansion de l'arène" ;
-- tester la convergence conditionnelle.
+- tester la convergence conditionnelle — fait ;
+- pivoter R1 en résultat négatif robuste ;
+- déplacer le cœur de la preuve vers R2bis/R3.
 
 ### Risque 2 — 17/18 cohortes seulement
 
@@ -437,49 +531,18 @@ Mitigation :
 
 Priorité immédiate :
 
-**R1b — robustesse et contrôles.**
+**R2bis — Style Premium longitudinal.**
 
 Objectif :
 
-Savoir si le résultat R1 est :
+Tester si les coefficients BT de style (`bold`, `lists`, `headers`) augmentent
+mois après mois. C'est le signal Goodhart le plus prometteur maintenant que R1
+ne confirme pas la convergence.
 
-- une vraie divergence stylistique ;
-- un artefact d'entrée de nouveaux modèles ;
-- ou une convergence conditionnelle masquée.
+Output attendu :
 
-Analyses à produire :
-
-1. OLS contrôlée :
-
-```text
-diversity ~ month_idx + n_models + n_responses
-```
-
-2. Corrélation :
-
-```text
-diversity vs n_models
-```
-
-3. Modèles récurrents :
-
-```text
-garder les modèles présents dans au moins 6 mois
-```
-
-4. Cohortes trimestrielles :
-
-```text
-quarterly_diversity
-```
-
-5. Figure :
-
-`paper/figures/R1_convergence_robustness.png`
-
-Output :
-
-`data/processed/diversity_temporal_robustness.parquet`
+- `data/processed/style_premium_temporal.parquet`
+- `paper/figures/R2bis_style_premium_longitudinal.png`
 
 ---
 
@@ -505,6 +568,12 @@ Voir commandes prêtes à copier-coller dans :
 
 `docs/commit_log.md`
 
+Commit R1b :
+
+```text
+test(R1): ajoute les contrôles de robustesse de convergence
+```
+
 ### À ajouter au prochain commit docs
 
 Ce fichier :
@@ -527,16 +596,13 @@ Bullets :
 
 ## 11. Décision de pitch provisoire
 
-Si R1b confirme une convergence conditionnelle :
+R1b ne confirme pas la convergence conditionnelle. Pitch provisoire :
 
-> "La diversité brute augmente parce que l'arène s'élargit. Mais à composition
-> contrôlée, les modèles récurrents convergent stylistiquement."
-
-Si R1b ne confirme pas :
-
-> "Nous ne trouvons pas encore de convergence stylistique globale. En revanche,
-> le style a déjà un effet mesurable sur la préférence, et le cœur causal du
-> projet se déplace vers R2bis/R3."
+> "Nous ne trouvons pas encore de convergence stylistique globale. Au contraire,
+> Compar:IA est encore en expansion stylistique. Mais c'est précisément pour cela
+> qu'il faut auditer le style : si certains formats donnent déjà un avantage de
+> préférence dans une arène encore diverse, alors le classement est vulnérable à
+> l'optimisation stratégique."
 
 Dans les deux cas, ne pas forcer la thèse. Le projet reste valable si on montre
 que :

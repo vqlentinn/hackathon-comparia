@@ -33,7 +33,8 @@ EOF
 ## Phase R1 — Convergence stylistique brute
 
 ```bash
-git add src/compariawatch/diversity.py notebooks/03_R1_convergence.ipynb data/processed/diversity_temporal.parquet paper/figures/R1_convergence.png
+git add src/compariawatch/diversity.py notebooks/03_R1_convergence.ipynb
+git add -f data/processed/diversity_temporal.parquet paper/figures/R1_convergence.png
 git commit -m "$(cat <<'EOF'
 feat(R1): mesure la diversité stylistique mensuelle
 
@@ -47,7 +48,8 @@ EOF
 ## Phase R1b — Robustesse à faire
 
 ```bash
-git add src/compariawatch/diversity.py notebooks/03_R1_convergence.ipynb data/processed/diversity_temporal_robustness.parquet paper/figures/R1_convergence_robustness.png
+git add scripts/r1_robustness.py docs/project_status.md docs/commit_log.md
+git add -f data/processed/diversity_temporal_robustness.parquet paper/figures/R1_convergence_robustness.png
 git commit -m "$(cat <<'EOF'
 test(R1): ajoute les contrôles de robustesse de convergence
 
