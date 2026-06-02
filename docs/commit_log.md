@@ -206,7 +206,23 @@ EOF
 git push
 ```
 
-## Phase R3 ensemble — pivot 2 juges sérieux
+## Phase R5bis — structure vs longueur
+
+```bash
+git add src/compariawatch/style_quality.py scripts/r5bis_structure_vs_length.py paper/tables/table_r5bis_structure_vs_length.md paper/tables/table_r5bis_structure_vs_length.csv docs/project_status.md docs/commit_log.md
+git add -f paper/figures/R5bis_structure_vs_length.png data/processed/style_length_quality_summary.parquet data/processed/style_length_quality_coefficients.parquet
+git commit -m "$(cat <<'EOF'
+feat(R5bis): décompose structure markdown vs longueur
+
+- extrait la longueur assistant depuis comparia-votes (cache local régénérable)
+- teste si bold/headers survivent après contrôle qualité + longueur log
+- réconcilie R3 (verbose pénalisé) et R5 (structure récompensée)
+EOF
+)"
+git push
+```
+
+Note : `data/raw/votes_length.parquet` se régénère via le script (non commité).
 
 ```bash
 git add notebooks/07_ensemble_analysis.ipynb paper/figures/R3_ensemble_judge.png docs/project_status.md

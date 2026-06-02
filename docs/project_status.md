@@ -1056,6 +1056,95 @@ Ne pas oublier `comparia-reactions`, mais ne pas bloquer le rendu dessus. Le
 projet a déjà une ligne empirique cohérente : pas d'effondrement visible,
 mais une vulnérabilité stylistique indépendante de la qualité.
 
+### 5.13 R5bis — Structure markdown vs longueur (priorité creusement #1)
+
+Objectif :
+
+Réconcilier R3 (concision gagne causalement) et R5/R2bis (bold/lists/headers
+aident observationnellement). Simon exclut volontairement la longueur de son
+style control ; nous testons si le **markdown structurel** prédit encore le
+vote après contrôle **qualité déclarée + longueur assistant**.
+
+Question :
+
+```text
+winner ~ delta_qualité + delta_log(longueur assistant) + delta_style
+```
+
+Statut :
+
+**Terminé.**
+
+Scripts / modules :
+
+- `src/compariawatch/style_quality.py` (`load_votes_length`, `fit_r5bis_specs`)
+- `scripts/r5bis_structure_vs_length.py`
+
+Données :
+
+- longueur extraite des messages `assistant` dans `conversation_a/b` du parquet
+  votes local (149 209 paires cacheées) ;
+- 79 073 battles décisives jointes, **0 %** de longueur manquante.
+
+Outputs :
+
+- `data/raw/votes_length.parquet`
+- `data/processed/style_length_quality_dataset.parquet`
+- `data/processed/style_length_quality_summary.parquet`
+- `data/processed/style_length_quality_coefficients.parquet`
+- `paper/figures/R5bis_structure_vs_length.png`
+- `paper/tables/table_r5bis_structure_vs_length.md`
+
+Résultat AUC :
+
+| Modèle | AUC | Lecture |
+|---|---:|---|
+| longueur (log) seule | 0.661 | signal comparable au style seul (0.669) |
+| longueur + style structurel | 0.678 | le markdown ajoute au-delà de la longueur |
+| qualité composantes seule | 0.821 | baseline R5 |
+| qualité + longueur | 0.860 | la longueur apporte surtout via la qualité |
+| qualité + style (R5) | 0.862 | référence sans longueur |
+| **qualité + longueur + style (R5bis)** | **0.865** | modèle complet |
+
+Effets après contrôle qualité **et** longueur :
+
+| Feature | R5 (sans longueur) | R5bis (avec longueur) |
+|---|---:|---:|
+| longueur log | — | +40.5 % |
+| bold | +30.6 % | **+14.5 %** |
+| headers | +12.8 % | **+13.8 %** |
+| lists | +15.4 % | +5.3 % |
+| emoji | +4.2 % | +6.2 % |
+| code_blocks | +1.5 % | +1.1 % |
+
+Interprétation (cohérence R3 ↔ R5) :
+
+1. **Deux dimensions du « style »** : la verbosité (longueur) et la structure
+   markdown (bold, headers) ne jouent pas le même rôle.
+2. **Longueur** : associée positivement au vote même après qualité contrôlée
+   (+40 % / SD) — cohérent avec le fait que « complet » et longueur sont liés
+   (argument Simon pour ne pas contrôler la longueur).
+3. **Structure** : `bold` et `headers` **survivent** au contrôle longueur +
+   qualité — ce n'est pas qu'un effet de verbosité.
+4. **Lists** : fortement atténué après longueur (15 % → 5 %) — les listes
+   corrèlent avec des réponses plus longues.
+5. **Lien R3** : le contrefactuel `verbose_markdown` manipule longueur **et**
+   structure ; le juge pénalise surtout la verbosité à contenu constant, pas le
+   gras/titres isolés.
+
+Conclusion R5bis :
+
+C'est la **synthèse la plus forte du projet** : le biais Compar:IA n'est pas
+monolithique. Observationnellement, longueur et structure aident ; causalement,
+la concision bat le verbose ; et **bold/headers restent des leviers indépendants**
+même après double contrôle qualité + longueur.
+
+Valeur ajoutée vs Zilinskas :
+
+- il mesure le formatting sans longueur ;
+- nous montrons ce qui reste quand on contrôle les deux ;
+- nous relions ce résultat à la preuve causale R3.
+
 ---
 
 ## 10. État des commits
@@ -1164,10 +1253,12 @@ Arguments à mettre en avant :
 - R1 : pas de collapse global, donc discours honnête ;
 - R2bis : le style compte, mais sa prime ne grimpe pas mécaniquement ;
 - R3 : preuve causale, concision très favorisée, verbose pénalisé ;
-- R5 : preuve Goodhart la plus directe, style indépendant de la qualité déclarée.
+- R5 : style indépendant de la qualité déclarée ;
+- **R5bis : décomposition structure vs longueur — bold/headers survivent au double contrôle**.
 
 Conclusion projet :
 
 On a ce qu'il faut pour un bon hackathon : pas pour prouver l'effondrement,
-mais pour prouver une vulnérabilité stylistique indépendante de la qualité.
+mais pour prouver une vulnérabilité stylistique **décomposée** (structure ≠
+verbosité), indépendante de la qualité, et confirmée causalement par R3.
 

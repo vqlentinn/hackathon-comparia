@@ -1,7 +1,7 @@
-"""R5 — Décomposition style vs qualité dans Compar:IA.
+"""R5 / R5bis — Décomposition style, qualité et longueur dans Compar:IA.
 
-Objectif : tester si les features stylistiques prédisent encore la victoire
-après contrôle des labels de qualité disponibles dans `comparia-votes`.
+R5 : le style prédit-il encore la victoire après contrôle des labels qualité ?
+R5bis : le markdown structurel survit-il après contrôle qualité + longueur ?
 """
 
 from __future__ import annotations
@@ -88,9 +88,57 @@ def _to_numeric(series: pd.Series) -> pd.Series:
     return pd.to_numeric(series, errors="coerce").fillna(0.0)
 
 
-def build_style_quality_dataset(battles: pd.DataFrame, votes: pd.DataFrame) -> pd.DataFrame:
-    """Joint style + qualité et construit les deltas A-B avec outcome binaire."""
+def _assistant_char_count(conversation: object) -> int:
+    """Compte les caractères des messages assistant d'une conversation HF."""
+    if conversation is None:
+        return 0
+    messages = list(conversation)
+    total = 0
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        if message.get("role") != "assistant":
+            continue
+        content = message.get("content") or ""
+        total += len(content)
+    return total
+
+
+def load_votes_length(cache_path: Path, local_votes_path: Path | None = None) -> pd.DataFrame:
+    """Charge/cache les longueurs assistant (caractères) depuis `comparia-votes`."""
+    if cache_path.exists():
+        print(f"Cache longueur chargé : {cache_path}")
+        return pd.read_parquet(cache_path)
+
+    if local_votes_path is None or not local_votes_path.exists():
+        msg = f"Parquet votes introuvable pour longueur : {local_votes_path}"
+        raise FileNotFoundError(msg)
+
+    print(f"Extraction longueur depuis {local_votes_path}")
+    raw = pd.read_parquet(
+        local_votes_path,
+        columns=[JOIN_KEY, "conversation_a", "conversation_b"],
+    )
+    raw["assistant_chars_a"] = raw["conversation_a"].map(_assistant_char_count)
+    raw["assistant_chars_b"] = raw["conversation_b"].map(_assistant_char_count)
+    out = raw[
+        [JOIN_KEY, "assistant_chars_a", "assistant_chars_b"]
+    ].drop_duplicates(subset=[JOIN_KEY], keep="last")
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    out.to_parquet(cache_path, index=False)
+    print(f"Cache longueur sauvegardé : {cache_path} ({len(out):,} lignes)")
+    return out
+
+
+def build_style_quality_dataset(
+    battles: pd.DataFrame,
+    votes: pd.DataFrame,
+    lengths: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Joint style + qualité (+ longueur) et construit les deltas A-B."""
     merged = battles.merge(votes, on=JOIN_KEY, how="inner", suffixes=("", "_vote"))
+    if lengths is not None:
+        merged = merged.merge(lengths, on=JOIN_KEY, how="left")
     decisive = merged[
         merged["winner"].isin(["model_a", "model_b"]) & merged["chosen_model_name"].notna()
     ].copy()
@@ -111,12 +159,59 @@ def build_style_quality_dataset(battles: pd.DataFrame, votes: pd.DataFrame) -> p
             delta = -delta
         decisive[f"delta_quality_{feature}"] = delta
 
+    if {"assistant_chars_a", "assistant_chars_b"}.issubset(decisive.columns):
+        decisive["delta_assistant_chars"] = (
+            decisive["assistant_chars_a"] - decisive["assistant_chars_b"]
+        )
+        decisive["delta_log_assistant_chars"] = np.log1p(decisive["assistant_chars_a"]) - np.log1p(
+            decisive["assistant_chars_b"]
+        )
+
     quality_cols = [col for col in decisive.columns if col.startswith("delta_quality_")]
     style_cols = [col for col in decisive.columns if col.startswith("delta_style_")]
     decisive["delta_quality_total"] = decisive[quality_cols].sum(axis=1)
     decisive["delta_style_total"] = decisive[style_cols].sum(axis=1)
     decisive["month_dt"] = pd.to_datetime(decisive["month"], errors="coerce")
     return decisive
+
+
+def _component_cols(df: pd.DataFrame, prefix: str, *, exclude_total: bool = True) -> list[str]:
+    """Colonnes composantes pour un préfixe donné."""
+    cols = [col for col in df.columns if col.startswith(prefix)]
+    if exclude_total:
+        cols = [col for col in cols if not col.endswith("_total")]
+    return cols
+
+
+def _fit_specs(df: pd.DataFrame, specs: dict[str, list[str]]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Fit une collection de modèles logit standardisés."""
+    y = df["y_model_a"].to_numpy()
+    summary_rows: list[dict] = []
+    coef_rows: list[dict] = []
+
+    for name, cols in specs.items():
+        cols = [col for col in cols if col in df.columns]
+        if not cols:
+            continue
+        x = df[cols].fillna(0.0).to_numpy()
+        x_scaled = StandardScaler().fit_transform(x)
+        model = LogisticRegression(max_iter=2000, random_state=RANDOM_STATE)
+        model.fit(x_scaled, y)
+        pred = model.predict_proba(x_scaled)[:, 1]
+        auc = roc_auc_score(y, pred)
+
+        summary_rows.append({"spec": name, "auc": auc, "n_features": len(cols), "n_rows": len(df)})
+        for col, coef in zip(cols, model.coef_[0], strict=True):
+            coef_rows.append(
+                {
+                    "spec": name,
+                    "feature": col,
+                    "coef": coef,
+                    "odds_pct_per_sd": (np.exp(coef) - 1) * 100,
+                }
+            )
+
+    return pd.DataFrame(summary_rows), pd.DataFrame(coef_rows)
 
 
 def fit_logit_specs(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -126,15 +221,8 @@ def fit_logit_specs(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     composantes et sommes (`delta_quality_total`, `delta_style_total`).
     Les specs `*_totals_only` sont gardées comme robustness check compact.
     """
-    y = df["y_model_a"].to_numpy()
-    quality_components = [
-        col
-        for col in df.columns
-        if col.startswith("delta_quality_") and col != "delta_quality_total"
-    ]
-    style_components = [
-        col for col in df.columns if col.startswith("delta_style_") and col != "delta_style_total"
-    ]
+    quality_components = _component_cols(df, "delta_quality_")
+    style_components = _component_cols(df, "delta_style_")
 
     specs = {
         "quality_components_only": quality_components,
@@ -159,28 +247,25 @@ def fit_logit_specs(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         col for col in df.columns if col.endswith("_x_month")
     ]
 
-    summary_rows: list[dict] = []
-    coef_rows: list[dict] = []
+    return _fit_specs(df, specs)
 
-    for name, cols in specs.items():
-        cols = [col for col in cols if col in df.columns]
-        x = df[cols].fillna(0.0).to_numpy()
-        x_scaled = StandardScaler().fit_transform(x)
-        model = LogisticRegression(max_iter=2000, random_state=RANDOM_STATE)
-        model.fit(x_scaled, y)
-        pred = model.predict_proba(x_scaled)[:, 1]
-        auc = roc_auc_score(y, pred)
 
-        summary_rows.append({"spec": name, "auc": auc, "n_features": len(cols), "n_rows": len(df)})
-        for col, coef in zip(cols, model.coef_[0], strict=True):
-            coef_rows.append(
-                {
-                    "spec": name,
-                    "feature": col,
-                    "coef": coef,
-                    "odds_pct_per_sd": (np.exp(coef) - 1) * 100,
-                }
-            )
+def fit_r5bis_specs(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Fit R5bis : structure markdown vs longueur, après contrôle qualité."""
+    if "delta_assistant_chars" not in df.columns:
+        msg = "delta_assistant_chars manquant : passer lengths à build_style_quality_dataset"
+        raise ValueError(msg)
 
-    return pd.DataFrame(summary_rows), pd.DataFrame(coef_rows)
+    quality_components = _component_cols(df, "delta_quality_")
+    style_components = _component_cols(df, "delta_style_")
+    length_features = ["delta_log_assistant_chars"]
+
+    specs = {
+        "length_log_only": length_features,
+        "quality_plus_length": quality_components + length_features,
+        "length_plus_style": length_features + style_components,
+        "quality_plus_style": quality_components + style_components,
+        "quality_length_style": quality_components + length_features + style_components,
+    }
+    return _fit_specs(df, specs)
 

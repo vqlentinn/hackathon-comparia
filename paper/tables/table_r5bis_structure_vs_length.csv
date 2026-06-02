@@ -1,0 +1,13 @@
+model,auc,n_features,n_rows
+Longueur (log) seule,0.6614476453938338,1,79073
+style_total_only,0.667087498831752,1,79073
+style_components_only,0.6685959533326784,5,79073
+Longueur + style structurel,0.6779693455419817,6,79073
+quality_total_only,0.8110502593416321,1,79073
+quality_components_only,0.8206347980517792,7,79073
+quality_plus_style_totals,0.8583486191184753,2,79073
+Qualité + longueur,0.8597849040897054,8,79073
+quality_plus_style_components,0.862429671178808,12,79073
+Qualité + style (R5),0.862429671178808,12,79073
+quality_style_time_interactions,0.8632225673041247,17,79073
+Qualité + longueur + style (R5bis),0.8649526250337982,13,79073
