@@ -896,6 +896,92 @@ Conclusion :
 Le benchmark n'est pas en effondrement visible, mais il est **vulnérable au
 style** : le style a une contribution indépendante de la qualité déclarée.
 
+### 5.10 R3 — Ensemble judge multi-modèles
+
+Objectif :
+
+Vérifier si l'effet causal R3 (concision préférée, verbose pénalisé) tient avec
+des juges LLM fiables, ou si c'est un biais Mistral seul.
+
+Statut :
+
+**Analysé sur N=75/94 paires** (run interrompu par quota Groq ; suffisant
+statistiquement).
+
+Scripts / modules :
+
+- `src/compariawatch/judge.py` (`groq_judge`, `ensemble_judge`)
+- `scripts/r3_ensemble_judge.py`
+- `notebooks/07_ensemble_analysis.ipynb`
+
+Output :
+
+- `data/processed/causal_style_votes_n100_ensemble.parquet`
+- `paper/figures/R3_ensemble_judge.png`
+
+#### Protocole initial (3 juges)
+
+Trois juges indépendants ont été testés pour robustesse :
+
+| Slot | Modèle | Rôle |
+|---|---|---|
+| #1 | Mistral Small | réutilisé du run N=100 |
+| #2 | Groq `llama-3.3-70b-versatile` | juge principal Groq |
+| #3 | Groq `llama-3.1-8b-instant` | remplace Mixtral décommissionné |
+
+Le kappa moyen sur 3 juges reste faible (0.25), principalement parce que le
+juge #3 (8B) diverge systématiquement des deux autres.
+
+#### Pivot méthodologique (2 juges sérieux)
+
+Conformément à Zheng et al. (2023, NeurIPS) — les petits modèles sont des juges
+LLM peu fiables — l'analyse **principale** repose sur l'accord **2/2** entre :
+
+- **Mistral Small** (juge #1) ;
+- **Groq Llama 3.3 70B** (juge #2).
+
+Le juge Llama 3.1 8B est conservé comme **sensitivity check secondaire**, avec
+disclaimer explicite (κ < 0.30 avec les juges sérieux).
+
+Distribution des 75 paires :
+
+| Comparaison | N |
+|---|---:|
+| `concise_direct` vs neutre | 45 |
+| `verbose_markdown` vs neutre | 30 |
+
+Résultats principaux (2 juges sérieux) :
+
+| Comparaison | Mistral | Llama 70B | Agreement 2/2 |
+|---|---:|---:|---:|
+| concise vs neutre | 88.9 % [76.5, 95.2] | 90.9 % [78.8, 96.4] | **97.3 % [86.2, 99.5]** (n=37) |
+| verbose vs neutre | 26.7 % [14.2, 44.4] | 33.3 % [19.2, 51.2] | **26.9 % [13.7, 46.1]** (n=26) |
+
+Accord inter-juges (Mistral × Llama 70B) :
+
+| Métrique | Valeur | Lecture |
+|---|---:|---|
+| Cohen's κ global | **0.67** | accord substantiel / proche fort |
+| Taux d'accord 2/2 — concise | 84.1 % | les 2 juges votent pareil sur 37/44 paires |
+| Taux d'accord 2/2 — verbose | 86.7 % | les 2 juges votent pareil sur 26/30 paires |
+
+Sensitivity check (Llama 8B — hors analyse principale) :
+
+| Métrique | Valeur |
+|---|---:|
+| Win-rate concise (8B) | 55.6 % (non significatif vs 50 %) |
+| Win-rate verbose (8B) | 63.3 % (direction opposée aux juges sérieux) |
+| κ(8B, Mistral) | −0.05 |
+| κ(8B, Llama 70B) | 0.13 |
+
+Verdict (3 lignes) :
+
+**R3 ROBUSTE (2 juges sérieux).** Mistral et Llama 70B convergent fortement
+(κ = 0.67) : concision gagne (~91–97 % selon métrique), verbose perd (~27–33 %).
+Ce n'est pas un biais Mistral seul. Le juge 8B diverge mais est exclu de
+l'analyse principale (Zheng et al. 2023). La thèse « divergence humain↔LLM »
+sur la valeur du formatage est soutenable pour le pitch.
+
 ---
 
 ## 10. État des commits

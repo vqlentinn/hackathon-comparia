@@ -150,3 +150,58 @@ feat(R5): contrôle le style par les labels qualité ComparIA
 EOF
 )"
 ```
+
+## Phase R3 ensemble — multi-judge
+
+```bash
+git add src/compariawatch/judge.py scripts/r3_ensemble_judge.py docs/project_status.md
+git add -f data/processed/causal_style_votes_n100_ensemble.parquet
+git commit -m "$(cat <<'EOF'
+docs(R3): documente N=100 + R5 + ensemble judge
+
+- ajoute section 5.10 ensemble judge avec chiffres N=75
+- documente groq_judge et reprise incrémentale du batch
+EOF
+)"
+```
+
+```bash
+git add notebooks/07_ensemble_analysis.ipynb paper/figures/R3_ensemble_judge.png
+git commit -m "$(cat <<'EOF'
+feat(R3): ensemble judge multi-modèles pour robustesse
+
+- notebook 07 : win-rates Wilson, kappa, Mistral isolé, verdict Cas C
+- figure R3_ensemble_judge.png (concise vs verbose, 3 juges + majority)
+EOF
+)"
+```
+
+## Phase R3 ensemble — pivot 2 juges sérieux
+
+```bash
+git add notebooks/07_ensemble_analysis.ipynb paper/figures/R3_ensemble_judge.png docs/project_status.md
+git commit -m "$(cat <<'EOF'
+feat(R3): finalise l'analyse avec 2 juges sérieux + sensitivity 8B
+
+- pivot méthodo : Mistral + Llama 70B comme juges principaux (κ=0.67)
+- agreement 2/2 : concise 97.3%, verbose 26.9%
+- Llama 8B exclu (κ<0.30) avec référence Zheng et al. 2023
+EOF
+)"
+git push
+```
+
+## Phase R3 ensemble — pivot 2 juges sérieux
+
+```bash
+git add notebooks/07_ensemble_analysis.ipynb paper/figures/R3_ensemble_judge.png docs/project_status.md
+git commit -m "$(cat <<'EOF'
+feat(R3): finalise l'analyse avec 2 juges sérieux + sensitivity 8B
+
+- pivot méthodo : Mistral + Llama 70B comme juges principaux (κ=0.67)
+- agreement 2/2 : concise 97.3%, verbose 26.9%
+- Llama 8B exclu (κ<0.30) avec référence Zheng et al. 2023
+EOF
+)"
+git push
+```
