@@ -1,6 +1,6 @@
 # Project Status — L'Arène se mord la queue
 
-Dernière mise à jour : mardi 2 juin 2026, 18h00.
+Dernière mise à jour : mardi 2 juin 2026, 18h10.
 
 Ce fichier sert de **source de vérité opérationnelle** pour suivre l'avancement du
 hackathon, les choix méthodologiques, les résultats déjà observés, les hypothèses
@@ -379,6 +379,54 @@ H2 ("le style premium augmente dans le temps") n'est pas confirmée. Le résulta
 reste utile : il montre que le style influence déjà fortement les votes, mais
 que le signal de Goodhart temporel n'est pas visible sur ces features simples.
 
+### 5.6 R3 — Smoke test contrefactuels
+
+Script :
+
+`scripts/r3_smoke_counterfactual.py`
+
+Module :
+
+`src/compariawatch/counterfactual.py`
+
+Notebook :
+
+`notebooks/05_R3_counterfactual_smoke.ipynb`
+
+Output :
+
+`data/interim/rewrites_smoke.parquet`
+
+Scope :
+
+- 10 réponses gagnantes depuis `comparia-votes` ;
+- 3 styles (`verbose_markdown`, `concise_direct`, `neutre_baseline`) ;
+- 30 appels Mistral ;
+- sauvegarde incrémentale toutes les 5 réponses ;
+- pas encore de NLI/cosine/judge.
+
+Résultat :
+
+| Style | N | Longueur originale moyenne | Longueur réécrite moyenne |
+|---|---:|---:|---:|
+| `verbose_markdown` | 10 | 2204 chars | 4423 chars |
+| `concise_direct` | 10 | 2204 chars | 1110 chars |
+| `neutre_baseline` | 10 | 2204 chars | 1580 chars |
+
+Validation :
+
+- extraction HF → OK ;
+- choix de la réponse originale → OK ;
+- Mistral rewrite → OK ;
+- parquet → OK ;
+- aucune valeur nulle `original` / `rewritten`.
+
+Point méthodologique :
+
+Le style `verbose_markdown` allonge très fortement les réponses. R3 devra donc
+contrôler explicitement la longueur ou comparer aussi `verbose_markdown` vs
+`neutre_baseline` en interprétant l'effet comme un bundle style+longueur.
+
 ---
 
 ## 6. Interprétation actuelle de R1
@@ -510,12 +558,13 @@ mais il ne s'accroît pas. La preuve Goodhart temporelle reste donc faible.
 
 Statut :
 
-Pas encore testé.
+Smoke test de génération validé. Pas encore de vérification sémantique ni de
+jugement causal.
 
 Précondition :
 
-Accès Mistral et Groq validés. Il reste à extraire les textes depuis
-`comparia-conversations`.
+Accès Mistral/Groq validés et extraction texte depuis `comparia-votes` validée.
+Prochaine étape : cosine similarity puis LLM-as-judge sur le smoke.
 
 ### H4 / R4 — forecast
 
@@ -588,11 +637,12 @@ Priorité immédiate :
 
 Objectif :
 
-Tester si le style modifie la préférence à contenu constant.
+Tester la préservation sémantique puis le jugement LLM sur les contrefactuels
+déjà générés.
 
 Output attendu :
 
-- `data/interim/rewrites_smoke.parquet`
+- `data/interim/rewrites_smoke_scored.parquet`
 - `data/processed/causal_style_votes.parquet`
 - `paper/figures/R3_style_premium.png`
 
@@ -636,6 +686,12 @@ Commit R2bis :
 
 ```text
 feat(R2bis): mesure le Style Premium longitudinal
+```
+
+Commit R3 smoke :
+
+```text
+feat(R3): valide le smoke test de contrefactuels
 ```
 
 ### À ajouter au prochain commit docs

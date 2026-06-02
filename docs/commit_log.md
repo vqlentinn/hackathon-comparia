@@ -88,3 +88,18 @@ feat(R2bis): mesure le Style Premium longitudinal
 EOF
 )"
 ```
+
+## Phase R3 — Smoke test contrefactuels
+
+```bash
+git add src/compariawatch/counterfactual.py scripts/r3_smoke_counterfactual.py notebooks/05_R3_counterfactual_smoke.ipynb docs/project_status.md docs/commit_log.md
+git add -f data/interim/rewrites_smoke.parquet
+git commit -m "$(cat <<'EOF'
+feat(R3): valide le smoke test de contrefactuels
+
+- extrait 10 réponses gagnantes depuis comparia-votes
+- génère trois styles via Mistral avec retry et sauvegarde incrémentale
+- produit rewrites_smoke.parquet pour la vérification sémantique suivante
+EOF
+)"
+```
