@@ -7,6 +7,11 @@ hackathon, les choix méthodologiques, les résultats déjà observés, les hypo
 à réviser et les prochaines décisions. Il est volontairement détaillé pour être
 relisible directement depuis Cursor/Dust sans reconstituer l'historique du chat.
 
+**Documents pitch** (génération slides + préparation oral) :
+
+- [`pitch_dust_brief.md`](pitch_dust_brief.md) — brief Dust, structure slides
+- [`pitch_equipe_reference.md`](pitch_equipe_reference.md) — glossaire, FAQ, chiffres
+
 ---
 
 ## 1. Positionnement du projet

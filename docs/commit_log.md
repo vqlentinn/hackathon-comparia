@@ -240,6 +240,20 @@ EOF
 git push
 ```
 
+## Phase docs pitch — brief Dust + référence équipe
+
+```bash
+git add docs/pitch_dust_brief.md docs/pitch_equipe_reference.md README.md docs/project_status.md docs/commit_log.md
+git commit -m "$(cat <<'EOF'
+docs: ajoute brief Dust et référence équipe pour le pitch
+
+- pitch_dust_brief.md : structure slides, chiffres, figures, consignes Dust
+- pitch_equipe_reference.md : glossaire, méthodes, FAQ jury, tous les chiffres
+EOF
+)"
+git push
+```
+
 ## Phase R3 ensemble — pivot 2 juges sérieux
 
 ```bash

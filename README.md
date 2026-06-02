@@ -4,8 +4,8 @@
 > Audit causal de **Compar:IA** à l'épreuve de la loi de Goodhart : convergence
 > stylistique, dérive arène-réalité, et projection d'effondrement du benchmark.
 
-Hackathon Compar:IA - ACSS Institute, Université Paris-Dauphine PSL — juin 2026.
-Équipe : Valentin Proux & Constantin Beraud.
+Hackathon Compar:IA — ACSS Institute, Université Paris-Dauphine PSL — juin 2026.
+Équipe : Valentin Proux & coéquipier.
 
 ---
 
@@ -42,7 +42,15 @@ cp .env.example .env
 # éditer .env : HF_TOKEN, MISTRAL_API_KEY, GROQ_API_KEY
 ```
 
-## Validation de l'accès aux données
+## Documentation pitch & présentation
+
+| Fichier | Usage |
+|---|---|
+| [`docs/pitch_dust_brief.md`](docs/pitch_dust_brief.md) | Brief pour Dust — génération des slides |
+| [`docs/pitch_equipe_reference.md`](docs/pitch_equipe_reference.md) | Référence équipe — définitions, chiffres, FAQ jury |
+| [`docs/project_status.md`](docs/project_status.md) | État technique complet du projet |
+
+---
 
 ```bash
 .venv/bin/python scripts/check_access.py
@@ -79,6 +87,5 @@ arene-mord-queue/
 
 `random_state = 42` partout. Versions exactes dans `requirements.lock`
 (`pip freeze` après install). Voir `docs/reproducibility.md`.
-=======
-# hackathon-comparia
+
 
