@@ -1145,6 +1145,74 @@ Valeur ajoutée vs Zilinskas :
 - nous montrons ce qui reste quand on contrôle les deux ;
 - nous relions ce résultat à la preuve causale R3.
 
+### 5.14 R6 — Endogénéité par tier de modèle
+
+Objectif :
+
+Tester si le style premium est surtout un « gaming » des modèles faibles
+(hypothèse confondante) ou un biais structurel de l'arène. Extension directe
+de `style-control-analysis/endogeneity_analysis.py`.
+
+Méthode :
+
+- tiers top/middle/bottom via ratings BT standard (JSON Zilinskas) ;
+- coefficients style-controlled BT par type de paire (`bottom-bottom`, `top-top`,
+  cross-tier) ;
+- modèle d'interaction tier × style ;
+- corrélation rating vs intensité moyenne de formatage par modèle.
+
+Scripts / modules :
+
+- `src/compariawatch/endogeneity.py`
+- `scripts/r6_endogeneity_tiers.py`
+
+Données :
+
+- 114 626 battles votes datés (filtre `source=vote`).
+
+Outputs :
+
+- `data/processed/endogeneity_tier_coefficients.parquet`
+- `data/processed/endogeneity_interaction_summary.parquet`
+- `data/processed/endogeneity_quality_formatting_corr.parquet`
+- `paper/figures/R6_endogeneity_tiers.png`
+- `paper/tables/table_r6_endogeneity_tiers.md`
+
+Résultats clés — corrélation qualité × formatage :
+
+| Feature | Pearson r | Lecture |
+|---|---:|---|
+| bold | +0.57 | les modèles **mieux classés** formatent **plus** |
+| lists | +0.52 | idem |
+| headers | +0.53 | idem |
+| composite | +0.59 | confondant partiel, pas simple gaming |
+
+Intensité moyenne par tier (bold) : bottom **7.3** → middle **15.1** → top **27.8**
+
+Style premium par type de paire (bold, % odds / SD) :
+
+| Paire | bold | lists | headers |
+|---|---:|---:|---:|
+| bottom-bottom | +24.2 | +25.7 | +7.1 |
+| middle-middle | +8.3 | +9.3 | +17.4 |
+| top-top | +18.1 | +11.5 | +7.4 |
+| **bottom-top** | **+41.6** | +14.4 | +10.6 |
+
+Interprétation :
+
+1. **Pas un simple « gaming des faibles »** : les modèles top formatent davantage
+   (r ≈ +0.6). Le biais style n'est pas reduit à une triche des mauvais modèles.
+2. **Le premium style persiste quand même** : bottom-bottom reste élevé (+24 % bold).
+3. **Effet maximal en cross-tier bottom-top** : quand un modèle faible affronte
+   un fort, le delta de formatage devient un levier énorme (+42 % bold).
+4. **Lien Goodhart** : le format est à la fois corrélé à la qualité réelle ET
+   exploitable indépendamment (R3/R5/R5bis) — double mécanisme, pas binaire.
+
+Conclusion R6 :
+
+Complète Simon : ce n'est pas « les faibles trichent », c'est « l'arène
+récompense le format partout, surtout quand les niveaux diffèrent ».
+
 ---
 
 ## 10. État des commits
@@ -1254,7 +1322,8 @@ Arguments à mettre en avant :
 - R2bis : le style compte, mais sa prime ne grimpe pas mécaniquement ;
 - R3 : preuve causale, concision très favorisée, verbose pénalisé ;
 - R5 : style indépendant de la qualité déclarée ;
-- **R5bis : décomposition structure vs longueur — bold/headers survivent au double contrôle**.
+- **R5bis : décomposition structure vs longueur — bold/headers survivent au double contrôle** ;
+- **R6 : endogénéité — les tops formatent plus, mais le premium style persiste (bottom-top +42 % bold)**.
 
 Conclusion projet :
 

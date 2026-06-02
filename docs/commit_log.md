@@ -224,6 +224,24 @@ git push
 
 Note : `data/raw/votes_length.parquet` se régénère via le script (non commité).
 
+## Phase R6 — endogénéité par tier
+
+```bash
+git add src/compariawatch/endogeneity.py scripts/r6_endogeneity_tiers.py paper/tables/table_r6_endogeneity_tiers.md paper/tables/table_r6_endogeneity_tiers.csv docs/project_status.md docs/commit_log.md
+git add -f paper/figures/R6_endogeneity_tiers.png data/processed/endogeneity_tier_coefficients.parquet data/processed/endogeneity_interaction_summary.parquet data/processed/endogeneity_quality_formatting_corr.parquet
+git commit -m "$(cat <<'EOF'
+feat(R6): analyse endogénéité style premium par tier modèle
+
+- stratifie les coefficients BT par type de paire top/middle/bottom
+- montre corrélation positive rating vs formatage (r≈0.6, pas un gaming des faibles)
+- effet style maximal en cross-tier bottom-top (+42% bold)
+EOF
+)"
+git push
+```
+
+## Phase R3 ensemble — pivot 2 juges sérieux
+
 ```bash
 git add notebooks/07_ensemble_analysis.ipynb paper/figures/R3_ensemble_judge.png docs/project_status.md
 git commit -m "$(cat <<'EOF'
