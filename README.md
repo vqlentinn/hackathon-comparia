@@ -1,3 +1,4 @@
+
 # 🦎 L'Arène se mord la queue
 
 > Audit causal de **Compar:IA** à l'épreuve de la loi de Goodhart : convergence
@@ -78,3 +79,6 @@ arene-mord-queue/
 
 `random_state = 42` partout. Versions exactes dans `requirements.lock`
 (`pip freeze` après install). Voir `docs/reproducibility.md`.
+=======
+# hackathon-comparia
+
