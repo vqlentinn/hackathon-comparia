@@ -38,7 +38,7 @@ def plot_results(summary: pd.DataFrame, coefs: pd.DataFrame) -> None:
     ax.set_title("Pouvoir prédictif : qualité vs style")
 
     ax = axes[1]
-    full = coefs[coefs["spec"] == "quality_plus_style"].copy()
+    full = coefs[coefs["spec"] == "quality_plus_style_components"].copy()
     style = full[full["feature"].str.startswith("delta_style_")].copy()
     style["feature_clean"] = style["feature"].str.replace("delta_style_", "", regex=False)
     style = style.sort_values("odds_pct_per_sd")
@@ -74,7 +74,7 @@ def main() -> int:
     print(summary.sort_values("auc").to_string(index=False))
     print("\n=== Coefficients style après contrôle qualité ===")
     style_full = coefs[
-        (coefs["spec"] == "quality_plus_style")
+        (coefs["spec"] == "quality_plus_style_components")
         & (coefs["feature"].str.startswith("delta_style_"))
     ]
     print(style_full.sort_values("odds_pct_per_sd").to_string(index=False))

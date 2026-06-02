@@ -852,25 +852,27 @@ Données :
   - superficiel ;
   - instructions non suivies.
 
-Résultat AUC :
+Résultat AUC — version nettoyée sans colinéarité :
 
 | Modèle | AUC | Lecture |
 |---|---:|---|
-| style seul | 0.669 | le style prédit déjà une partie du vote |
-| qualité seule | 0.821 | les labels qualité expliquent fortement le vote |
-| qualité + style | 0.862 | le style ajoute un gain net après contrôle qualité |
+| style total seul | 0.667 | un score style agrégé prédit déjà une partie du vote |
+| style composantes seules | 0.669 | les features style individuelles captent un signal réel |
+| qualité totale seule | 0.811 | le score qualité agrégé explique fortement le vote |
+| qualité composantes seules | 0.821 | les labels qualité détaillés sont plus informatifs que le total |
+| qualité totale + style total | 0.858 | le style ajoute du signal même sous forme agrégée |
+| qualité composantes + style composantes | **0.862** | résultat principal : style indépendant de la qualité |
 | qualité + style + interactions temps | 0.863 | gain temporel marginal |
 
-Effets style après contrôle qualité :
+Effets style après contrôle qualité — modèle principal sans totaux redondants :
 
 | Feature style | Odds % / SD |
 |---|---:|
-| `bold` | +20.1 % |
-| `delta_style_total` | +16.4 % |
-| `headers` | +10.2 % |
-| `lists` | +7.5 % |
-| `emoji` | +2.9 % |
-| `code_blocks` | +0.6 % |
+| `bold` | +30.6 % |
+| `lists` | +15.4 % |
+| `headers` | +12.8 % |
+| `emoji` | +4.2 % |
+| `code_blocks` | +1.5 % |
 
 Interactions style × mois :
 
@@ -887,7 +889,9 @@ Interprétation :
 R5 est le résultat Goodhart le plus solide à ce stade. Même après contrôle des
 labels qualité déclarés, les features de style améliorent nettement la
 prédiction du vote (`AUC 0.821 → 0.862`) et certains effets restent forts
-(`bold +20 %`, `headers +10 %`). En revanche, les interactions temporelles
+(`bold +30.6 %`, `lists +15.4 %`, `headers +12.8 %`). La version nettoyée est
+méthodologiquement meilleure que la première, car elle n'estime plus en même
+temps les composantes et leurs totaux. En revanche, les interactions temporelles
 n'indiquent pas une inflation généralisée : certains effets diminuent dans le
 temps, notamment `bold`.
 
@@ -918,6 +922,7 @@ Output :
 
 - `data/processed/causal_style_votes_n100_ensemble.parquet`
 - `paper/figures/R3_ensemble_judge.png`
+- `paper/tables/table_r3_counterfactual.{csv,md,tex}`
 
 #### Protocole initial (3 juges)
 
@@ -982,6 +987,75 @@ Ce n'est pas un biais Mistral seul. Le juge 8B diverge mais est exclu de
 l'analyse principale (Zheng et al. 2023). La thèse « divergence humain↔LLM »
 sur la valeur du formatage est soutenable pour le pitch.
 
+### 5.11 Tables finales R3 + R5
+
+Objectif :
+
+Figer les résultats exploitables dans le papier et les slides, sans dépendre
+des notebooks.
+
+Script :
+
+`scripts/make_final_tables.py`
+
+Outputs :
+
+- `paper/tables/table_r3_counterfactual.csv`
+- `paper/tables/table_r3_counterfactual.md`
+- `paper/tables/table_r3_counterfactual.tex`
+- `paper/tables/table_r5_auc.csv`
+- `paper/tables/table_r5_auc.md`
+- `paper/tables/table_r5_auc.tex`
+- `paper/tables/table_r5_style_coefficients.csv`
+- `paper/tables/table_r5_style_coefficients.md`
+- `paper/tables/table_r5_style_coefficients.tex`
+
+Lecture :
+
+Ces tables sont maintenant la source propre pour les résultats finaux :
+
+- R3 : effet causal de style par contrefactuels, confirmé par Mistral + Llama 70B ;
+- R5 : style vs qualité, avec ablations sans colinéarité.
+
+### 5.12 Données HF : `comparia-votes` vs `comparia-reactions`
+
+Clarification importante :
+
+Le téléchargement local fait via terminal correspond à :
+
+`ministere-culture/comparia-votes`
+
+et non à un autre dataset. Le fichier utilisé est :
+
+`data/raw/hf/comparia-votes/votes.parquet`
+
+Ce dataset est central parce qu'il contient à la fois :
+
+- le vote / choix du modèle ;
+- des labels de qualité conversationnelle ;
+- les identifiants nécessaires à la jointure avec les battles et les features style.
+
+`comparia-reactions` n'est donc pas oublié. Il est classé **nice-to-have** pour
+un enrichissement secondaire, mais pas prioritaire pour la preuve Goodhart
+actuelle. Sa valeur potentielle :
+
+- mesurer des réactions plus fines que le simple vote ;
+- détecter des signaux affectifs ou de satisfaction utilisateur ;
+- ajouter une analyse exploratoire si le temps reste disponible.
+
+Pourquoi ne pas le mettre au centre maintenant :
+
+- R3 + R5 suffisent déjà à soutenir la thèse hackathon ;
+- `comparia-votes` répond directement à la question clé : le style prédit-il le
+  vote après contrôle de la qualité déclarée ? ;
+- ajouter un dataset maintenant augmente le risque de dispersion.
+
+Décision :
+
+Ne pas oublier `comparia-reactions`, mais ne pas bloquer le rendu dessus. Le
+projet a déjà une ligne empirique cohérente : pas d'effondrement visible,
+mais une vulnérabilité stylistique indépendante de la qualité.
+
 ---
 
 ## 10. État des commits
@@ -1030,41 +1104,70 @@ Commit R3 scoring smoke :
 feat(R3): score les contrefactuels smoke
 ```
 
-### À ajouter au prochain commit docs
+### Prochain commit recommandé
 
-Ce fichier :
-
-`docs/project_status.md`
-
-Commit suggéré :
+Commit :
 
 ```text
-docs: ajoute le suivi projet et les hypothèses révisées
+feat(final): consolide R3/R5 et le framing Goodhart
 ```
 
-Bullets :
+Fichiers à inclure :
 
-- documente l'état du pipeline et les artefacts produits
-- consigne le résultat R1 brut et son interprétation
-- ajoute les hypothèses révisées et les prochaines analyses de robustesse
+- `src/compariawatch/style_quality.py`
+- `scripts/r5_style_vs_quality.py`
+- `scripts/make_final_tables.py`
+- `data/processed/style_quality_model_summary.parquet`
+- `data/processed/style_quality_coefficients.parquet`
+- `paper/tables/table_r3_counterfactual.csv`
+- `paper/tables/table_r3_counterfactual.md`
+- `paper/tables/table_r3_counterfactual.tex`
+- `paper/tables/table_r5_auc.csv`
+- `paper/tables/table_r5_auc.md`
+- `paper/tables/table_r5_auc.tex`
+- `paper/tables/table_r5_style_coefficients.csv`
+- `paper/tables/table_r5_style_coefficients.md`
+- `paper/tables/table_r5_style_coefficients.tex`
+- `paper/figures/R5_style_vs_quality.png`
+- `docs/project_status.md`
+- `docs/commit_log.md`
 
 ---
 
-## 11. Décision de pitch provisoire
+## 11. Décision de pitch finale
 
-R1b ne confirme pas la convergence conditionnelle. Pitch provisoire :
+Ne pas pitcher :
 
-> "Nous ne trouvons pas encore de convergence stylistique globale ni de hausse
-> temporelle du style premium. En revanche, le style influence bien la préférence :
-> les features de formatage ont un effet moyen de +14 à +20 % dans les données
-> observationnelles, et notre smoke causal montre que changer le style à contenu
-> proche peut renverser le jugement. Fait intéressant, le juge ne récompense pas
-> le markdown verbose : il préfère la concision."
+> "Compar:IA s'effondre."
 
-Dans les deux cas, ne pas forcer la thèse. Le projet reste valable si on montre
-que :
+Les résultats R1/R2bis ne soutiennent pas cette version forte :
 
-- le style influence les votes ;
-- cette influence évolue ;
-- les classements doivent être corrigés ou audités.
+- pas de convergence stylistique globale observée ;
+- pas de hausse temporelle robuste du style premium ;
+- diversité plutôt croissante, compatible avec l'expansion de l'arène.
+
+Pitch recommandé :
+
+> "Compar:IA passe le stress-test Goodhart ? Pas encore effondré, mais
+> vulnérable au style."
+
+Version courte :
+
+> "Nous ne trouvons pas un effondrement du benchmark. En revanche, nous montrons
+> une vulnérabilité Goodhart : à qualité contrôlée, le style ajoute du pouvoir
+> prédictif au vote, et des contrefactuels à contenu proche peuvent inverser le
+> jugement. Compar:IA ne s'est pas encore mordu la queue, mais l'arène est
+> optimisable par la forme."
+
+Arguments à mettre en avant :
+
+- R1 : pas de collapse global, donc discours honnête ;
+- R2bis : le style compte, mais sa prime ne grimpe pas mécaniquement ;
+- R3 : preuve causale, concision très favorisée, verbose pénalisé ;
+- R5 : preuve Goodhart la plus directe, style indépendant de la qualité déclarée.
+
+Conclusion projet :
+
+On a ce qu'il faut pour un bon hackathon : pas pour prouver l'effondrement,
+mais pour prouver une vulnérabilité stylistique indépendante de la qualité.
 

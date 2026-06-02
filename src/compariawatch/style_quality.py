@@ -120,16 +120,29 @@ def build_style_quality_dataset(battles: pd.DataFrame, votes: pd.DataFrame) -> p
 
 
 def fit_logit_specs(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Fit modèles logit : qualité seule, style seul, qualité+style, interaction temps."""
+    """Fit modèles logit avec ablations sans colinéarité.
+
+    Les specs principales excluent les totaux pour éviter d'inclure à la fois
+    composantes et sommes (`delta_quality_total`, `delta_style_total`).
+    Les specs `*_totals_only` sont gardées comme robustness check compact.
+    """
     y = df["y_model_a"].to_numpy()
+    quality_components = [
+        col
+        for col in df.columns
+        if col.startswith("delta_quality_") and col != "delta_quality_total"
+    ]
+    style_components = [
+        col for col in df.columns if col.startswith("delta_style_") and col != "delta_style_total"
+    ]
+
     specs = {
-        "quality_only": [col for col in df.columns if col.startswith("delta_quality_")],
-        "style_only": [col for col in df.columns if col.startswith("delta_style_")],
-        "quality_plus_style": [
-            col
-            for col in df.columns
-            if col.startswith("delta_quality_") or col.startswith("delta_style_")
-        ],
+        "quality_components_only": quality_components,
+        "style_components_only": style_components,
+        "quality_plus_style_components": quality_components + style_components,
+        "quality_total_only": ["delta_quality_total"],
+        "style_total_only": ["delta_style_total"],
+        "quality_plus_style_totals": ["delta_quality_total", "delta_style_total"],
     }
 
     if "month_idx" not in df.columns:
@@ -142,7 +155,7 @@ def fit_logit_specs(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         if col in df.columns:
             df[f"{col}_x_month"] = df[col] * df["month_idx"]
 
-    specs["quality_style_time_interactions"] = specs["quality_plus_style"] + [
+    specs["quality_style_time_interactions"] = specs["quality_plus_style_components"] + [
         col for col in df.columns if col.endswith("_x_month")
     ]
 

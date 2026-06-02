@@ -191,6 +191,21 @@ EOF
 git push
 ```
 
+## Phase finale — R5 propre + tables R3/R5 + framing Goodhart
+
+```bash
+git add src/compariawatch/style_quality.py scripts/r5_style_vs_quality.py scripts/make_final_tables.py data/processed/style_quality_model_summary.parquet data/processed/style_quality_coefficients.parquet paper/tables/table_r3_counterfactual.csv paper/tables/table_r3_counterfactual.md paper/tables/table_r3_counterfactual.tex paper/tables/table_r5_auc.csv paper/tables/table_r5_auc.md paper/tables/table_r5_auc.tex paper/tables/table_r5_style_coefficients.csv paper/tables/table_r5_style_coefficients.md paper/tables/table_r5_style_coefficients.tex paper/figures/R5_style_vs_quality.png docs/project_status.md docs/commit_log.md
+git commit -m "$(cat <<'EOF'
+feat(final): consolide R3/R5 et le framing Goodhart
+
+- nettoie R5 avec ablations sans colinéarité entre composantes et totaux
+- génère les tables finales R3/R5 en csv, markdown et latex
+- reformule le pitch : pas d'effondrement visible, mais vulnérabilité stylistique indépendante de la qualité
+EOF
+)"
+git push
+```
+
 ## Phase R3 ensemble — pivot 2 juges sérieux
 
 ```bash
