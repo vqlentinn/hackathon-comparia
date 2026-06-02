@@ -12,6 +12,8 @@ Sorties :
 from __future__ import annotations
 
 import sys
+import argparse
+import time
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -24,10 +26,10 @@ sys.path.insert(0, str(ROOT / "src"))
 from compariawatch.counterfactual import COSINE_THRESHOLD, get_mistral_client  # noqa: E402
 from compariawatch.judge import judge_pair  # noqa: E402
 
-INPUT = ROOT / "data" / "interim" / "rewrites_smoke.parquet"
-SCORED_OUTPUT = ROOT / "data" / "interim" / "rewrites_smoke_scored.parquet"
-VOTES_OUTPUT = ROOT / "data" / "processed" / "causal_style_votes_smoke.parquet"
-FIGURE = ROOT / "paper" / "figures" / "R3_style_premium_smoke.png"
+DEFAULT_INPUT = ROOT / "data" / "interim" / "rewrites_smoke.parquet"
+DEFAULT_SCORED_OUTPUT = ROOT / "data" / "interim" / "rewrites_smoke_scored.parquet"
+DEFAULT_VOTES_OUTPUT = ROOT / "data" / "processed" / "causal_style_votes_smoke.parquet"
+DEFAULT_FIGURE = ROOT / "paper" / "figures" / "R3_style_premium_smoke.png"
 
 EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 COMPARE_STYLES = ("verbose_markdown", "concise_direct")
@@ -51,10 +53,22 @@ def add_cosine_scores(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def judge_smoke(scored: pd.DataFrame) -> pd.DataFrame:
+def judge_smoke(
+    scored: pd.DataFrame,
+    votes_output: Path,
+    require_cosine: bool = False,
+    sleep_between_calls: float = 1.5,
+) -> pd.DataFrame:
     """Juge style cible vs baseline neutre pour chaque conversation."""
     client = get_mistral_client()
-    rows: list[dict] = []
+    if votes_output.exists():
+        existing = pd.read_parquet(votes_output)
+        rows: list[dict] = existing.to_dict("records")
+        done = set(zip(existing["conversation_pair_id"], existing["style_target"], strict=True))
+        print(f"[resume votes] {votes_output} chargé ({len(rows)} jugements)")
+    else:
+        rows = []
+        done = set()
 
     grouped = scored.pivot_table(
         index=["conversation_pair_id", "opening_msg", "original_model"],
@@ -71,8 +85,19 @@ def judge_smoke(scored: pd.DataFrame) -> pd.DataFrame:
             continue
 
         for style in COMPARE_STYLES:
+            key = (row["conversation_pair_id"], style)
+            if key in done:
+                print(f"[skip judged] {idx + 1}/{len(grouped)} {style}")
+                continue
+
             candidate = row.get(f"rewritten__{style}")
             if not isinstance(candidate, str) or not candidate:
+                continue
+            if require_cosine and not (
+                bool(row.get(f"preserved_cosine__{style}"))
+                and bool(row.get(f"preserved_cosine__{BASELINE_STYLE}"))
+            ):
+                print(f"[skip cosine] {idx + 1}/{len(grouped)} {style}")
                 continue
 
             result = judge_pair(
@@ -101,12 +126,15 @@ def judge_smoke(scored: pd.DataFrame) -> pd.DataFrame:
                     "raw": result["raw"],
                 }
             )
+            votes_output.parent.mkdir(parents=True, exist_ok=True)
+            pd.DataFrame(rows).to_parquet(votes_output, index=False)
+            time.sleep(sleep_between_calls)
             print(f"[judge] {idx + 1}/{len(grouped)} {style} -> {winner}")
 
     return pd.DataFrame(rows)
 
 
-def plot_votes(votes: pd.DataFrame) -> None:
+def plot_votes(votes: pd.DataFrame, figure: Path) -> None:
     """Figure smoke : part de victoires du style vs neutre."""
     summary = (
         votes.groupby("style_target")
@@ -122,31 +150,65 @@ def plot_votes(votes: pd.DataFrame) -> None:
     for i, row in summary.iterrows():
         ax.text(i, row["style_win_rate"] + 0.03, f"n={int(row['n'])}", ha="center")
     plt.tight_layout()
-    FIGURE.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(FIGURE, dpi=200, bbox_inches="tight")
-    print(f"Figure sauvegardée : {FIGURE}")
+    figure.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(figure, dpi=200, bbox_inches="tight")
+    print(f"Figure sauvegardée : {figure}")
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse les arguments CLI."""
+    parser = argparse.ArgumentParser(description="Score les contrefactuels R3")
+    parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
+    parser.add_argument("--scored-output", type=Path, default=DEFAULT_SCORED_OUTPUT)
+    parser.add_argument("--votes-output", type=Path, default=DEFAULT_VOTES_OUTPUT)
+    parser.add_argument("--figure", type=Path, default=DEFAULT_FIGURE)
+    parser.add_argument(
+        "--require-cosine",
+        action="store_true",
+        help="Juge seulement les paires où style et neutre passent le seuil cosine",
+    )
+    parser.add_argument("--sleep", type=float, default=1.5, help="Pause entre deux appels judge")
+    return parser.parse_args()
+
+
+def _rooted(path: Path) -> Path:
+    return path if path.is_absolute() else ROOT / path
 
 
 def main() -> int:
-    df = pd.read_parquet(INPUT)
-    print(f"Rewrites smoke : {df.shape}")
+    args = parse_args()
+    input_path = _rooted(args.input)
+    scored_output = _rooted(args.scored_output)
+    votes_output = _rooted(args.votes_output)
+    figure = _rooted(args.figure)
 
-    scored = add_cosine_scores(df)
-    SCORED_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    scored.to_parquet(SCORED_OUTPUT, index=False)
-    print(f"Scored sauvegardé : {SCORED_OUTPUT}")
+    if scored_output.exists():
+        scored = pd.read_parquet(scored_output)
+        print(f"Scored existant chargé : {scored_output} {scored.shape}")
+    else:
+        df = pd.read_parquet(input_path)
+        print(f"Rewrites smoke : {df.shape}")
+        scored = add_cosine_scores(df)
+        scored_output.parent.mkdir(parents=True, exist_ok=True)
+        scored.to_parquet(scored_output, index=False)
+        print(f"Scored sauvegardé : {scored_output}")
     print("\nCosine par style :")
     print(scored.groupby("style_target")["cosine"].describe().round(3).to_string())
     print("\nPréservation cosine :")
     print(scored.groupby("style_target")["preserved_cosine"].mean().round(3).to_string())
 
-    votes = judge_smoke(scored)
-    VOTES_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    votes.to_parquet(VOTES_OUTPUT, index=False)
-    print(f"\nVotes sauvegardés : {VOTES_OUTPUT}")
+    votes = judge_smoke(
+        scored,
+        votes_output=votes_output,
+        require_cosine=args.require_cosine,
+        sleep_between_calls=args.sleep,
+    )
+    votes_output.parent.mkdir(parents=True, exist_ok=True)
+    votes.to_parquet(votes_output, index=False)
+    print(f"\nVotes sauvegardés : {votes_output}")
     print(votes.groupby("style_target")[["style_wins", "baseline_wins", "tie"]].mean().round(3))
 
-    plot_votes(votes)
+    plot_votes(votes, figure)
     return 0
 
 

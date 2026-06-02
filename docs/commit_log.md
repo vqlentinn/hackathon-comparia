@@ -118,3 +118,35 @@ feat(R3): score les contrefactuels smoke
 EOF
 )"
 ```
+
+## Phase R3 — Batch N=100
+
+À lancer après fin du batch + scoring :
+
+```bash
+git add scripts/r3_smoke_counterfactual.py scripts/r3_score_smoke.py docs/project_status.md docs/commit_log.md
+git add -f data/interim/rewrites_n100.parquet data/interim/rewrites_n100_scored.parquet data/processed/causal_style_votes_n100.parquet paper/figures/R3_style_premium_n100.png
+git commit -m "$(cat <<'EOF'
+feat(R3): étend les contrefactuels causaux à 100 réponses
+
+- génère 300 réécritures Mistral sur 100 réponses source
+- filtre les paires jugées avec similarité cosine suffisante
+- produit les votes causaux N100 et la figure R3 principale
+EOF
+)"
+```
+
+## Phase R5 — Style vs qualité
+
+```bash
+git add src/compariawatch/style_quality.py scripts/r5_style_vs_quality.py docs/project_status.md docs/commit_log.md
+git add -f data/raw/votes_quality.parquet data/processed/style_quality_dataset.parquet data/processed/style_quality_model_summary.parquet data/processed/style_quality_coefficients.parquet paper/figures/R5_style_vs_quality.png
+git commit -m "$(cat <<'EOF'
+feat(R5): contrôle le style par les labels qualité ComparIA
+
+- joint les features de style aux labels qualité de comparia-votes
+- compare des modèles logit qualité seule, style seul et qualité plus style
+- montre que le style améliore la prédiction du vote après contrôle qualité
+EOF
+)"
+```

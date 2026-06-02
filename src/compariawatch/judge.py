@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import random
 import re
+import time
 from typing import Any
 
 from compariawatch.counterfactual import get_mistral_client
@@ -74,6 +75,7 @@ def judge_pair(
     client: Any | None = None,
     randomize_position: bool = POSITION_RANDOMIZED,
     seed: int = RANDOM_STATE,
+    max_tries: int = 4,
 ) -> dict[str, str | bool]:
     """Juge la paire (response_a, response_b) pour un prompt donné.
 
@@ -97,21 +99,31 @@ def judge_pair(
     left, right = (response_b, response_a) if flipped else (response_a, response_b)
 
     mistral = client or get_mistral_client()
-    response = mistral.chat.complete(
-        model=JUDGE_MODEL,
-        messages=[
-            {
-                "role": "user",
-                "content": JUDGE_PROMPT.format(
-                    prompt=prompt[:MAX_JUDGE_CHARS],
-                    response_a=left[:MAX_JUDGE_CHARS],
-                    response_b=right[:MAX_JUDGE_CHARS],
-                ),
-            }
-        ],
-        temperature=0,
-        max_tokens=120,
+    content = JUDGE_PROMPT.format(
+        prompt=prompt[:MAX_JUDGE_CHARS],
+        response_a=left[:MAX_JUDGE_CHARS],
+        response_b=right[:MAX_JUDGE_CHARS],
     )
+
+    last_error: Exception | None = None
+    for attempt in range(max_tries):
+        try:
+            response = mistral.chat.complete(
+                model=JUDGE_MODEL,
+                messages=[{"role": "user", "content": content}],
+                temperature=0,
+                max_tokens=120,
+            )
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            sleep_s = min(60, 2 ** (attempt + 2))
+            print(f"[retry judge] tentative {attempt + 1}/{max_tries}: {exc}; sleep={sleep_s}s")
+            time.sleep(sleep_s)
+    else:
+        msg = f"Échec judge après {max_tries} tentatives : {last_error}"
+        raise RuntimeError(msg)
+
     raw = response.choices[0].message.content.strip()
     winner, reason = _parse_winner(raw)
 

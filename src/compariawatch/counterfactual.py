@@ -171,19 +171,42 @@ def build_rewrite_rows(
 ) -> pd.DataFrame:
     """Génère les réécritures pour un petit batch et sauvegarde régulièrement."""
     client = get_mistral_client()
-    rows: list[dict[str, Any]] = []
+    if output_path.exists():
+        existing = pd.read_parquet(output_path)
+        rows: list[dict[str, Any]] = existing.to_dict("records")
+        completed = (
+            existing.groupby("conversation_pair_id")["style_target"]
+            .apply(lambda values: set(values) >= set(styles))
+            .to_dict()
+        )
+        print(f"[resume] {output_path} chargé ({len(rows)} lignes existantes)")
+    else:
+        rows = []
+        completed = {}
 
     for row_idx, row in enumerate(source_rows):
+        pair_id = row.get("conversation_pair_id")
+        if completed.get(pair_id, False):
+            print(f"[skip] {row_idx + 1}/{len(source_rows)} déjà complet")
+            continue
+
         side, model_name, original = choose_original_response(row)
         if not original:
             print(f"[skip] ligne {row_idx}: réponse assistant vide")
             continue
 
+        existing_styles = {
+            item["style_target"]
+            for item in rows
+            if item.get("conversation_pair_id") == pair_id
+        }
         for style in styles:
+            if style in existing_styles:
+                continue
             rewritten = rewrite_response(original, style, client=client)
             rows.append(
                 {
-                    "conversation_pair_id": row.get("conversation_pair_id"),
+                    "conversation_pair_id": pair_id,
                     "opening_msg": row.get("opening_msg"),
                     "timestamp": row.get("timestamp"),
                     "chosen_model_name": row.get("chosen_model_name"),

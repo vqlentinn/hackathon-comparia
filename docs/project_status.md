@@ -1,6 +1,6 @@
 # Project Status — L'Arène se mord la queue
 
-Dernière mise à jour : mardi 2 juin 2026, 18h20.
+Dernière mise à jour : mardi 2 juin 2026, 19h55.
 
 Ce fichier sert de **source de vérité opérationnelle** pour suivre l'avancement du
 hackathon, les choix méthodologiques, les résultats déjà observés, les hypothèses
@@ -482,6 +482,84 @@ R3 devient le cœur empirique. Il faut passer à N=100 avec :
 - comparaison `verbose_markdown` vs `neutre_baseline` ;
 - analyse longueur comme médiateur.
 
+### 5.8 R3 — Batch N=100
+
+Statut :
+
+**Terminé et scoré.**
+
+Commande :
+
+```bash
+python scripts/r3_smoke_counterfactual.py \
+  --n 100 \
+  --output data/interim/rewrites_n100.parquet
+```
+
+Scope attendu :
+
+- 100 réponses source ;
+- 3 styles ;
+- 300 réécritures Mistral ;
+- sauvegarde incrémentale toutes les 5 réponses source ;
+- sortie : `data/interim/rewrites_n100.parquet`.
+
+Scoring :
+
+```bash
+python scripts/r3_score_smoke.py \
+  --input data/interim/rewrites_n100.parquet \
+  --scored-output data/interim/rewrites_n100_scored.parquet \
+  --votes-output data/processed/causal_style_votes_n100.parquet \
+  --figure paper/figures/R3_style_premium_n100.png \
+  --require-cosine
+```
+
+Outputs :
+
+- `data/interim/rewrites_n100.parquet`
+- `data/interim/rewrites_n100_scored.parquet`
+- `data/processed/causal_style_votes_n100.parquet`
+- `paper/figures/R3_style_premium_n100.png`
+
+Validation sémantique :
+
+| Style | N | Cosine moyen | Taux `cosine >= 0.85` |
+|---|---:|---:|---:|
+| `concise_direct` | 100 | 0.868 | 68 % |
+| `neutre_baseline` | 100 | 0.879 | 71 % |
+| `verbose_markdown` | 100 | 0.848 | 49 % |
+
+Jugements après filtre cosine :
+
+Le filtre `--require-cosine` garde seulement les comparaisons où le style cible
+et la baseline neutre passent tous deux le seuil `cosine >= 0.85`.
+
+| Style cible vs neutre | N jugé | Victoires style | Victoires neutre | Tie | Win rate style |
+|---|---:|---:|---:|---:|---:|
+| `concise_direct` | 56 | 50 | 5 | 1 | 89.3 % |
+| `verbose_markdown` | 38 | 8 | 30 | 0 | 21.1 % |
+
+Résultat principal R3 :
+
+À contenu proche selon cosine, le juge préfère massivement la version
+**concise_direct** à la version neutre, tandis que la version
+**verbose_markdown** est pénalisée.
+
+Interprétation :
+
+- L'effet causal du style existe fortement.
+- Il ne va pas dans le sens "plus long/markdown = mieux" pour le juge Mistral.
+- Le signal gagnant ici est plutôt **concision, densité, absence de verbiage**.
+- Ce résultat est cohérent avec l'idée que les arènes peuvent favoriser des
+  styles spécifiques, mais il contredit la version naïve "markdown verbose gagne".
+
+Note méthodologique :
+
+`--require-cosine` filtre les jugements pour ne garder que les paires où le
+style cible et le neutre passent tous les deux le seuil `cosine >= 0.85`.
+Cela réduit N mais augmente la crédibilité causale.
+
 ---
 
 ## 6. Interprétation actuelle de R1
@@ -692,22 +770,131 @@ Priorité immédiate :
 
 Objectif :
 
-Passer du smoke N=10 à un batch N=100, en gardant les sauvegardes
-incrémentales et le filtrage cosine.
+Exploiter le résultat N=100 dans le papier/figures, puis décider si on étend à
+N=200 uniquement si le temps API le permet.
 
 Output attendu :
 
-- `data/interim/rewrites_n100.parquet`
-- `data/interim/rewrites_n100_scored.parquet`
-- `data/processed/causal_style_votes_n100.parquet`
-- `paper/figures/R3_style_premium_n100.png`
+- table R3 propre pour le papier ;
+- figure R3 finale ;
+- section discussion sur concision vs verbose.
 
 Pourquoi :
 
 R1 ne confirme pas la convergence. R2bis confirme un effet moyen du style, mais
-pas sa croissance temporelle. Le smoke R3 montre un signal causal très fort :
-la concision est préférée à la version neutre, tandis que le verbose-markdown
-est pénalisé.
+pas sa croissance temporelle. R3 N=100 fournit le résultat fort du projet :
+la concision est préférée à la version neutre dans 89 % des cas filtrés, tandis
+que le verbose-markdown est rejeté dans 79 % des cas.
+
+### 5.9 R5 — Style vs qualité (piste Goodhart)
+
+Objectif :
+
+Tester si le style prédit encore la victoire après contrôle des labels qualité
+disponibles dans `comparia-votes` :
+
+- complétude ;
+- utilité ;
+- clarté du format ;
+- créativité ;
+- incorrect ;
+- superficiel ;
+- instructions non suivies.
+
+Question :
+
+```text
+winner ~ delta_quality + delta_style
+```
+
+et :
+
+```text
+winner ~ delta_quality + delta_style + delta_style × month
+```
+
+Statut :
+
+**Terminé.**
+
+Déblocage :
+
+Le parquet HF complet `comparia-votes` a été téléchargé localement :
+
+`data/raw/hf/comparia-votes/votes.parquet`
+
+Script :
+
+`scripts/r5_style_vs_quality.py`
+
+Module :
+
+`src/compariawatch/style_quality.py`
+
+Outputs :
+
+- `data/raw/votes_quality.parquet`
+- `data/processed/style_quality_dataset.parquet`
+- `data/processed/style_quality_model_summary.parquet`
+- `data/processed/style_quality_coefficients.parquet`
+- `paper/figures/R5_style_vs_quality.png`
+
+Données :
+
+- 149 209 votes dans le parquet local ;
+- 79 073 battles décisives jointes avec features de style ;
+- labels qualité utilisés :
+  - complétude ;
+  - utilité ;
+  - clarté du format ;
+  - créativité ;
+  - incorrect ;
+  - superficiel ;
+  - instructions non suivies.
+
+Résultat AUC :
+
+| Modèle | AUC | Lecture |
+|---|---:|---|
+| style seul | 0.669 | le style prédit déjà une partie du vote |
+| qualité seule | 0.821 | les labels qualité expliquent fortement le vote |
+| qualité + style | 0.862 | le style ajoute un gain net après contrôle qualité |
+| qualité + style + interactions temps | 0.863 | gain temporel marginal |
+
+Effets style après contrôle qualité :
+
+| Feature style | Odds % / SD |
+|---|---:|
+| `bold` | +20.1 % |
+| `delta_style_total` | +16.4 % |
+| `headers` | +10.2 % |
+| `lists` | +7.5 % |
+| `emoji` | +2.9 % |
+| `code_blocks` | +0.6 % |
+
+Interactions style × mois :
+
+| Interaction | Odds % / SD |
+|---|---:|
+| `bold × month` | -29.9 % |
+| `code_blocks × month` | -18.5 % |
+| `lists × month` | -4.1 % |
+| `emoji × month` | -1.0 % |
+| `headers × month` | +4.4 % |
+
+Interprétation :
+
+R5 est le résultat Goodhart le plus solide à ce stade. Même après contrôle des
+labels qualité déclarés, les features de style améliorent nettement la
+prédiction du vote (`AUC 0.821 → 0.862`) et certains effets restent forts
+(`bold +20 %`, `headers +10 %`). En revanche, les interactions temporelles
+n'indiquent pas une inflation généralisée : certains effets diminuent dans le
+temps, notamment `bold`.
+
+Conclusion :
+
+Le benchmark n'est pas en effondrement visible, mais il est **vulnérable au
+style** : le style a une contribution indépendante de la qualité déclarée.
 
 ---
 

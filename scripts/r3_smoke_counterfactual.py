@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import sys
+import argparse
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +32,7 @@ from compariawatch.counterfactual import (  # noqa: E402
 )
 
 DATASET = "ministere-culture/comparia-votes"
-OUTPUT = ROOT / "data" / "interim" / "rewrites_smoke.parquet"
+DEFAULT_OUTPUT = ROOT / "data" / "interim" / "rewrites_smoke.parquet"
 N_SMOKE = 10
 MIN_RESPONSE_CHARS = 300
 
@@ -71,14 +72,30 @@ def collect_smoke_rows(n_rows: int = N_SMOKE) -> list[dict[str, Any]]:
     return rows
 
 
+def parse_args() -> argparse.Namespace:
+    """Parse les arguments CLI."""
+    parser = argparse.ArgumentParser(description="Génère des contrefactuels R3")
+    parser.add_argument("--n", type=int, default=N_SMOKE, help="Nombre de réponses source")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_OUTPUT,
+        help="Parquet de sortie",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
-    print(f"Collecte {N_SMOKE} réponses depuis {DATASET}")
-    rows = collect_smoke_rows(N_SMOKE)
+    args = parse_args()
+    output = args.output if args.output.is_absolute() else ROOT / args.output
+
+    print(f"Collecte {args.n} réponses depuis {DATASET}")
+    rows = collect_smoke_rows(args.n)
     print(f"Lignes collectées : {len(rows)}")
     print(f"Styles : {STYLE_TARGETS}")
 
-    rewrites = build_rewrite_rows(rows, OUTPUT)
-    print(f"\nSauvegardé : {OUTPUT}")
+    rewrites = build_rewrite_rows(rows, output)
+    print(f"\nSauvegardé : {output}")
     print(f"Shape : {rewrites.shape}")
     print(rewrites[["style_target", "original_n_chars", "rewritten_n_chars"]].head(10))
     return 0
