@@ -4,8 +4,8 @@
 > Audit causal de **Compar:IA** à l'épreuve de la loi de Goodhart : convergence
 > stylistique, dérive arène-réalité, et projection d'effondrement du benchmark.
 
-Hackathon Compar:IA — ACSS Institute, Université Paris-Dauphine PSL — juin 2026.
-Équipe : Valentin Proux & coéquipier.
+Hackathon Compar:IA - ACSS Institute, Université Paris-Dauphine PSL — juin 2026.
+Équipe : Valentin Proux & Constantin Beraud.
 
 ---
 
