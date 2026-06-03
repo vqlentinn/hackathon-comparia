@@ -49,3 +49,5 @@ print('OK')
 ```
 
 Spec complète : message Slack / brief R1-bis du binôme.
+
+**Résultats du run** : voir [`R1bis_resultats.md`](R1bis_resultats.md).

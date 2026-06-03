@@ -32,8 +32,8 @@
 
 ### Ce qu'il FAUT dire
 
-- Pas de convergence stylistique globale (R1) ni d'amplification temporelle du style
-  premium (R2bis)
+- Pas de convergence sur **cohorte fixe** (R1-bis) ; hausse globale R1 = surtout **composition** (plus de modèles)
+- Pas d'amplification temporelle du style premium (R2bis)
 - Mais le style influence les votes : observationnellement (R5), causalement (R3),
   indépendamment de la qualité déclarée (R5) et de la longueur (R5bis)
 - Deux dimensions du style : **structure markdown** vs **verbosité/longueur**
@@ -82,21 +82,21 @@ stylistiquement et dégradent-ils le signal de qualité ?
 
 ---
 
-### Slide 4 — R1/R2bis : pas d'effondrement visible
+### Slide 4 — R1/R1-bis/R2bis : pas de convergence, pas d'effondrement
 
-**Message** : l'arène **s'étend**, ne **converge** pas.
+**Message** : l'arène **s'élargit**, les modèles **historiques ne convergent pas**.
 
 | Résultat | Chiffre clé |
 |---|---|
-| Diversité stylistique mensuelle | pente **+0.057/mois** (p<0.001) — **hausse** |
-| Après contrôle n_models | pente **+0.047** — hausse persiste |
-| Style premium bold (niveau moyen) | **+19.8 %** odds/SD |
-| Tendance temporelle bold | **−1.4 pts/mois** (diminue, pas augmente) |
+| R1 brut : diversité ↑ | +0.057/mois (corr n_models=0.83) |
+| **R1-bis cohorte stable (9 modèles)** | pente **−0.003/mois** (p=0.71) — **plate** |
+| R1-bis dispersion globale (densifiée) | +0.038/mois (p=0.005) — nouveaux modèles |
+| Style premium bold (niveau) | +19.8 % odds/SD |
+| Tendance bold | −1.4 pts/mois |
 
-**Figure** : `paper/figures/R1_convergence_robustness.png`  
-**Figure optionnelle** : `paper/figures/R2bis_style_premium_longitudinal.png`
+**Figures** : `paper/figures/R1bis_cohorte_stable.png` (prioritaire) + `R1_convergence_robustness.png`
 
-**Takeaway** : pas de signal Goodhart « collapse imminent » sur la dynamique.
+**Takeaway** : hausse globale = artefact de composition ; pas de convergence Goodhart sur cohorte fixe.
 
 ---
 
@@ -226,6 +226,7 @@ deux leviers distincts.
 
 | Asset | Chemin |
 |---|---|
+| R1-bis cohorte | `paper/figures/R1bis_cohorte_stable.png` |
 | R1 robustesse | `paper/figures/R1_convergence_robustness.png` |
 | R1 brute | `paper/figures/R1_convergence.png` |
 | R2bis | `paper/figures/R2bis_style_premium_longitudinal.png` |

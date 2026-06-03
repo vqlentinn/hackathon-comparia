@@ -1,8 +1,8 @@
 
 # 🦎 L'Arène se mord la queue
 
-> Audit causal de **Compar:IA** à l'épreuve de la loi de Goodhart : convergence
-> stylistique, dérive arène-réalité, et projection d'effondrement du benchmark.
+> Audit de **Compar:IA** à l'épreuve de la loi de Goodhart : pas de convergence
+> sur cohorte fixe (R1-bis), vulnérabilité au style (R3/R5/R6).
 
 Hackathon Compar:IA — ACSS Institute, Université Paris-Dauphine PSL — juin 2026.
 Équipe : Valentin Proux & coéquipier.
@@ -11,17 +11,18 @@ Hackathon Compar:IA — ACSS Institute, Université Paris-Dauphine PSL — juin 
 
 ## Thèse
 
-Compar:IA, devenu cible d'entraînement implicite des LLM (RLHF/DPO), perd
-progressivement son pouvoir de mesurer la qualité. On le démontre via 4 modules :
+> Compar:IA ne s'effondre pas et ne converge pas stylistiquement sur une cohorte
+> fixe, mais reste **vulnérable au formatage** (style, longueur, structure).
 
 | Module | Question | Méthode |
 |---|---|---|
-| **R1** | La diversité stylistique inter-modèles décroît-elle ? | features stylo + Wasserstein (POT) + OLS |
-| **R2** | L'écart Elo Compar:IA vs benchmarks externes croît-il ? | rank gap + OLS sur l'âge des modèles |
-| **R3** | Quelle part causale du style dans la préférence ? | contrefactuels LLM, NLI+cosine, judge, ATE |
-| **R4** | Quand le benchmark cessera-t-il de discriminer ? | state-space bayésien NumPyro (fallback Prophet) |
+| **R1 / R1-bis** | Convergence ou artefact de composition ? | diversité mensuelle + cohorte stable densifiée |
+| **R2bis** | Le style premium augmente-t-il ? | BT mensuel style-controlled |
+| **R3** | Effet causal du format ? | contrefactuels + juges LLM |
+| **R5 / R5bis** | Style vs qualité + longueur ? | logit + AUC |
+| **R6** | Gaming des modèles faibles ? | tiers + interactions BT |
 
-Spec complète : [`projet_arene_se_mord_la_queue.md`](projet_arene_se_mord_la_queue.md).
+Docs : [`docs/pitch_equipe_reference.md`](docs/pitch_equipe_reference.md) · [`docs/R1bis_resultats.md`](docs/R1bis_resultats.md)
 
 ---
 

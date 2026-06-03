@@ -56,14 +56,18 @@ Goodhart prédit une dérive vers des \emph{proxies} mesurables --- format markd
 longueur, structure --- au détriment de la qualité intrinsèque.
 Nous étendons l'analyse \emph{style-controlled} de \citet{zilinskas2026formatting} sur
 \emph{Compar:IA}, arène francophone de la DINUM ($\approx$145\,000 combats nettoyés,
-89 modèles), selon cinq axes complémentaires : (i)~dynamique temporelle de la diversité
-stylistique (R1) ; (ii)~évolution mensuelle du \emph{style premium} (R2bis) ;
+89 modèles), selon six axes complémentaires : (i)~dynamique temporelle de la diversité
+stylistique (R1/R1-bis) ; (ii)~évolution mensuelle du \emph{style premium} (R2bis) ;
 (iii)~preuve causale par réécritures contrefactuelles et juges LLM (R3) ;
 (iv)~ablation style \emph{vs.} qualité déclarée et longueur (R5/R5bis) ;
 (v)~endogénéité par tier de modèle (R6).
-Nos résultats ne confirment \emph{pas} une convergence stylistique ni une dérive
-temporelle du premium : la diversité \emph{augmente} ($\beta = +0{,}057$ par mois,
-$p < 0{,}001$) et le gras ne monte pas dans le temps ($-1{,}4$ points par mois).
+La diversité \emph{globale} augmente ($\beta = +0{,}057$ par mois en R1 brut,
+$p < 0{,}001$), mais R1-bis montre que, sur une \textbf{cohorte fixe} de 9 modèles
+présents $\geq 12$ mois (dont Llama-3.3-70B et Llama-3.1-8B), la dispersion
+stylistique densifiée est \textbf{stable} ($\beta = -0{,}003$, $p = 0{,}71$) ---
+compatible avec un \emph{artefact de composition} de l'arène plutôt qu'une
+divergence stylistique réelle. Pas de dérive temporelle du premium (gras
+$-1{,}4$ points/mois).
 En revanche, la vulnérabilité au formatage est robuste : contrefactuels concis
 $\rightarrow$ 89--97\,\% de victoires, verboses $\rightarrow$ 21--27\,\% ;
 AUC prédictive du vote passe de 0{,}821 (qualité seule) à 0{,}862 (+ style) ;
@@ -123,7 +127,7 @@ mais la corrélation globale des classements reste élevée ($r = 0{,}976$).
 
 Nous \textbf{prolongeons} ce travail sans le contredire, en ajoutant :
 \begin{enumerate}[noitemsep]
-  \item une dimension \textbf{temporelle} (R1, R2bis) absente du papier original ;
+  \item une dimension \textbf{temporelle} (R1, R1-bis, R2bis) absente du papier original ;
   \item une dimension \textbf{causale} par contrefactuels (R3) ;
   \item une décomposition \textbf{qualité / longueur / structure} (R5, R5bis) ;
   \item une analyse d'\textbf{endogénéité} par tier de performance (R6).
@@ -257,6 +261,39 @@ $\beta < 0$ compatible avec convergence ; $\beta > 0$ avec diversification.
 Contrôles additionnels : nombre de modèles actifs par mois, volume de combats,
 effets fixes de mode d'arène.
 
+\subsection{R1-bis --- Cohorte stable et artefact de composition}
+
+\subsubsection{Motivation}
+
+Une hausse de $D_t$ peut refléter l'entrée de modèles stylistiquement distincts
+(\emph{artefact de composition}) plutôt qu'une divergence des modèles existants.
+R1-bis remesure la dispersion sur une \textbf{cohorte fixe}.
+
+\subsubsection{Périmètre et densification}
+
+Battles avec \texttt{source == "vote"}, ties exclus, timestamps valides
+($<1\,\%$ NaT). Features densifiées :
+\begin{equation}
+  f^{\mathrm{dens}} = \frac{f_{\mathrm{brut}}}{\texttt{assistant\_chars}}
+\end{equation}
+(merge \texttt{votes\_length.parquet} sur \texttt{conversation\_pair\_id}).
+
+\subsubsection{Cohorte stable}
+
+Modèles retenus si $\geq 100$ battles totales et $\geq 12$ mois distincts
+(fallback 10 mois si $<6$ modèles ; non déclenché). Neuf modèles retenus,
+dont \texttt{llama-3.3-70b} et \texttt{llama-3.1-8b}.
+
+\subsubsection{Métrique commune}
+
+Distance euclidienne moyenne entre centroïdes (\texttt{method="centroid"},
+identique à R1), z-score global, $\geq 100$ réponses/modèle/mois, skip si
+$<5$ modèles. Pour chaque mois~$t$ :
+\begin{align}
+  D^{\mathrm{glob}}_t &= \mathrm{mean\_pdist}(\text{centroïdes de tous modèles actifs}), \\
+  D^{\mathrm{coh}}_t &= \mathrm{mean\_pdist}(\text{centroïdes} \in \text{cohorte stable}).
+\end{align}
+
 \subsection{R2bis --- Style premium longitudinal}
 
 \subsubsection{Modèle BT mensuel}
@@ -374,26 +411,78 @@ mieux formatés \emph{et} sur-récompensés) prédit $r > 0$ et premium croissan
 \section{Résultats}
 \label{sec:results}
 
-\subsection{R1 --- Pas de convergence stylistique}
+\subsection{R1 --- Diversité globale et artefact de composition}
 
-La diversité $D_t$ \textbf{augmente} dans le temps (Figure~\ref{fig:r1}) :
-\begin{equation}
-  \hat{\beta} = +0{,}057 \text{ par mois}, \quad p < 0{,}001.
-\end{equation}
+\subsubsection{R1 brut}
 
-Après contrôles (R1b), le signe positif persiste. La distance de Wasserstein entre
-mois consécutifs ne montre pas de contraction systématique.
+La diversité $D_t$ (comptes bruts) \textbf{augmente} (Figure~\ref{fig:r1}) :
+$\hat{\beta} = +0{,}057$ par mois, $p < 0{,}001$. Corrélation forte avec
+\texttt{n\_models} ($r = 0{,}83$) : l'expansion du parc (14 $\rightarrow$ 43 modèles)
+explique en partie la courbe.
 
 \begin{figure}[H]
   \centering
   \maybeincludegraphics[width=0.85\textwidth]{figures/R1_convergence_robustness.png}
-  \caption{Diversité stylistique mensuelle (R1). Tendance positive : pas de convergence
-  vers un format unique.}
+  \caption{Diversité stylistique mensuelle (R1 brut, comptes bruts).}
   \label{fig:r1}
 \end{figure}
 
-\textbf{Interprétation.} Le stade~1 Goodhart (convergence) n'est pas observé ; les
-modèles restent stylistiquement distincts, voire plus dispersés.
+\subsubsection{R1-bis --- cohorte stable}
+
+Sur 79\,075 battles votées (features \textbf{densifiées}), fenêtre fév.\,2025 --
+janv.\,2026 (12 mois), cohorte de \textbf{9 modèles} (Table~\ref{tab:cohorte}).
+
+\begin{table}[H]
+\centering
+\caption{Cohorte stable R1-bis ($\geq 100$ battles, $\geq 12$ mois).}
+\label{tab:cohorte}
+\small
+\begin{tabular}{lrr}
+\toprule
+Modèle & Battles & Mois actifs \\
+\midrule
+llama-3.1-405b & 5\,760 & 13 \\
+llama-3.1-8b & 5\,201 & 15 \\
+ministral-8b-instruct-2410 & 4\,790 & 12 \\
+phi-4 & 4\,524 & 12 \\
+llama-3.3-70b & 4\,468 & 13 \\
+gemma-3-4b & 4\,287 & 12 \\
+gemma-3-27b & 3\,807 & 12 \\
+gemma-3-12b & 3\,690 & 12 \\
+command-a & 3\,428 & 12 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \maybeincludegraphics[width=0.85\textwidth]{figures/R1bis_cohorte_stable.png}
+  \caption{R1-bis : dispersion globale vs cohorte stable (features densifiées).
+  Annotations = \texttt{n\_models\_cohorte}.}
+  \label{fig:r1bis}
+\end{figure}
+
+OLS sur \texttt{month\_idx} (Table~\ref{tab:r1bis_ols}) :
+
+\begin{table}[H]
+\centering
+\caption{R1-bis : régressions OLS ($N = 12$ mois).}
+\label{tab:r1bis_ols}
+\begin{tabular}{lrrrr}
+\toprule
+Série & Pente & IC 95\,\% & $p$ & $R^2$ \\
+\midrule
+Dispersion globale & $+0{,}038$ & $[+0{,}015,\ +0{,}062]$ & 0{,}005 & 0{,}567 \\
+Dispersion cohorte & $-0{,}003$ & $[-0{,}022,\ +0{,}016]$ & 0{,}71 & 0{,}015 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Lecture.} Globalement, la dispersion \emph{densifiée} monte encore
+(nouveaux modèles chaque mois). Sur la cohorte fixe, la pente est nulle :
+\textbf{pas de convergence} ni de divergence stylistique intra-cohorte.
+Le stade~1 Goodhart (convergence vers un format unique) n'est pas observé ;
+la hausse R1 globale est largement un \emph{artefact de composition}.
 
 \subsection{R2bis --- Premium élevé mais stable dans le temps}
 
@@ -541,7 +630,8 @@ leaders dont le style est à la fois plus riche et mieux récompensé.
 \toprule
 Module & Question & Résultat & Stade Goodhart \\
 \midrule
-R1 & Convergence ? & Diversité $\uparrow$ & Stade 1 : non \\
+R1 & Convergence globale ? & Brut $\uparrow$ ; cohorte stable $\approx$ flat & Stade 1 : non \\
+R1-bis & Artefact composition ? & Globale $+0{,}038$* ; cohorte $-0{,}003$ n.s. & Composition \\
 R2bis & Premium $\uparrow$ dans le temps ? & Niveau haut, pente $\leq 0$ & Stade 2 : non \\
 R3 & Format cause-t-il le vote ? & Oui (large ATE) & Vulnérabilité \\
 R5/R5bis & Au-delà qualité+longueur ? & Oui (+14--31\,\% gras) & Vulnérabilité \\
@@ -558,8 +648,9 @@ R4 & Effondrement imminent ? & Abandonné & --- \\
 
 Trois messages pour les responsables de la plateforme :
 \begin{enumerate}
-  \item \textbf{Pas de panique temporelle} : ni convergence ni inflation récente
-        du premium ; le benchmark n'est pas en train de s'effondrer \emph{observablement}.
+  \item \textbf{Pas de convergence intra-cohorte} (R1-bis) : sur 9 modèles stables,
+        la dispersion densifiée est plate ($p = 0{,}71$) ; la hausse globale R1
+        reflète surtout l'élargissement du parc.
   \item \textbf{Vulnérabilité réelle} : formatage et longueur influencent les votes
         causalement et prédictivement, même contrôlant la qualité déclarée.
   \item \textbf{Biais structurel} : les modèles en tête de classement sont aussi
@@ -588,7 +679,7 @@ reste in-sample ; une validation croisée temporelle serait nécessaire pour une
   \item Publier des classements \emph{style-controlled} aux côtés des classements bruts
         (suivre Zilinskas) ;
   \item Randomiser ou normaliser la longueur dans une fraction des combats ;
-  \item Monitorer $D_t$ et $\gamma_{f,t}$ mensuellement comme \emph{early warnings} ;
+  \item Monitorer $D_t$ \emph{global et cohorte stable} et $\gamma_{f,t}$ mensuellement ;
   \item Compléter les juges LLM (R3) par des contrefactuels annotés par utilisateurs réels.
 \end{enumerate}
 
@@ -607,6 +698,8 @@ reste in-sample ; une validation croisée temporelle serait nécessaire pour une
         arbitraire.
   \item \textbf{16 mois} : fenêtre courte pour des phénomènes Goodhart lents
         \citep{espeland2016engines}.
+  \item \textbf{R1-bis} : échelle densifiée $\neq$ R1 historique (comptes bruts) ;
+        fenêtre 12 mois (2025-02 -- 2026-01) ; cohorte $n=9$.
 \end{itemize}
 
 \section{Conclusion}
@@ -614,8 +707,8 @@ reste in-sample ; une validation croisée temporelle serait nécessaire pour une
 
 Ce travail prolonge l'audit de \citet{zilinskas2026formatting} sur \emph{Compar:IA}
 selon une grille temporelle, causale et structurelle inspirée de la loi de Goodhart.
-Les données \textbf{ne montrent pas} une convergence stylistique ni une dérive
-temporelle du style premium ; elles \textbf{montrent} une sensibilité persistante
+Les données \textbf{ne montrent pas} une convergence stylistique sur une cohorte
+fixe (R1-bis) ni une dérive temporelle du style premium (R2bis) ; elles \textbf{montrent} une sensibilité persistante
 au formatage --- causalement (R3), prédictivement (R5/R5bis) et corrélée au rang
 (R6).
 
@@ -668,7 +761,7 @@ stylistiques :
 
 Scripts principaux (répertoire \texttt{scripts/}) :
 \begin{itemize}[noitemsep]
-  \item \texttt{r1\_robustness.py}, \texttt{r2bis\_style\_premium.py}
+  \item \texttt{r1\_robustness.py}, \texttt{r1bis\_cohorte\_stable.py}, \texttt{r2bis\_style\_premium.py}
   \item \texttt{r3\_ensemble\_judge.py}, \texttt{r5\_style\_vs\_quality.py}
   \item \texttt{r5bis\_structure\_vs\_length.py}, \texttt{r6\_endogeneity\_tiers.py}
 \end{itemize}

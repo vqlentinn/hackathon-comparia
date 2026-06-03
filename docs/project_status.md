@@ -1220,6 +1220,43 @@ récompense le format partout, surtout quand les niveaux diffèrent ».
 
 ---
 
+## 5.15 R1-bis — Cohorte stable vs artefact de composition
+
+**Statut** : ✅ terminé (2026-06-03)
+
+**Commits** : `3234b80`, `0d2e7be`, `b2d9f0d`
+
+**Question** : la hausse de diversité R1 est-elle un artefact de l'élargissement du parc ?
+
+**Script** : `scripts/r1bis_cohorte_stable.py`
+
+**Module** : `src/compariawatch/diversity.py` — `densify_features`, `select_stable_cohort`, `compute_dispersion_cohorte`
+
+**Doc résultats** : `docs/R1bis_resultats.md` (factuel, sans interprétation Goodhart)
+
+### Résultats clés
+
+| Série | Pente | p | R² |
+|---|---:|---:|---:|
+| dispersion_globale (densifiée) | +0.0384 | 0.005 | 0.567 |
+| dispersion_cohorte (9 modèles) | −0.0033 | 0.71 | 0.015 |
+
+**Cohorte** : llama-3.1-405b, llama-3.1-8b, llama-3.3-70b, ministral-8b-instruct-2410, phi-4, gemma-3-4b/12b/27b, command-a.
+
+### Sorties
+
+- `data/processed/dispersion_cohorte.csv`
+- `paper/figures/R1bis_cohorte_stable.png`
+- `docs/R1bis_handoff.md`
+
+### Interprétation projet (binôme)
+
+Pas de convergence stylistique sur cohorte fixe. Hausse globale = composition.
+Complète R1/R1b : corr(n_models, diversity)=0.83 n'était pas suffisant — R1-bis
+le démontre sur une cohorte explicite.
+
+---
+
 ## 10. État des commits
 
 ### Déjà poussé

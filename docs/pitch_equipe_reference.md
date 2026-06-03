@@ -4,7 +4,7 @@
 > chiffres expliqués, méthodes, limites, FAQ jury, et lien avec Zilinskas.
 > Pour les slides, Dust utilise [`pitch_dust_brief.md`](pitch_dust_brief.md).
 
-**Dernière mise à jour** : juin 2026 — recheck chiffres validé sur parquets locaux.
+**Dernière mise à jour** : 3 juin 2026 — inclut R1-bis (cohorte stable, run factuel).
 
 ---
 
@@ -14,6 +14,7 @@
 2. [Thèse du projet — version finale](#2-thèse-du-projet--version-finale)
 3. [Données — ce qu'on utilise et pourquoi](#3-données--ce-quon-utilise-et-pourquoi)
 4. [R1 — Diversité stylistique temporelle](#4-r1--diversité-stylistique-temporelle)
+4b. [R1-bis — Cohorte stable (artefact de composition)](#4b-r1-bis--cohorte-stable-artefact-de-composition)
 5. [R2bis — Style Premium longitudinal](#5-r2bis--style-premium-longitudinal)
 6. [R3 — Contrefactuels causaux](#6-r3--contrefactuels-causaux)
 7. [R5 — Style vs qualité déclarée](#7-r5--style-vs-qualité-déclarée)
@@ -76,6 +77,58 @@ Mesure de **formatage markdown** extraite par regex sur le texte de réponse :
 
 **Important** : ce ne sont PAS des mesures sémantiques ou de qualité du contenu.
 Ce sont des comptages de structure de surface.
+
+---
+
+### Feature densifiée (R1-bis)
+
+Normalisation par longueur de réponse pour neutraliser l'effet verbosité :
+
+```
+bold_density = bold_count / assistant_chars
+```
+
+`assistant_chars` provient de `votes_length.parquet` (caractères du message assistant).
+
+---
+
+### Dispersion stylistique inter-modèles ($D_t$)
+
+Distance moyenne entre les **centroïdes** stylistiques de chaque modèle actif
+un mois donné. Mesure à quel point les modèles se « ressemblent » en formatage.
+
+- **R1 brut** : comptes bruts (bold, lists…)
+- **R1-bis** : features **densifiées**, même métrique `centroid` pour global et cohorte
+
+---
+
+### Artefact de composition
+
+Quand le parc de modèles s'élargit (14 → 43 modèles), la dispersion **globale**
+peut augmenter **sans** que les modèles existants changent de style — simplement
+parce qu'on ajoute des modèles différents. R1-bis teste cela via une **cohorte fixe**.
+
+---
+
+### Cohorte stable (R1-bis)
+
+Ensemble de modèles présents sur toute la période :
+- ≥ **100 battles** totales (votes)
+- ≥ **12 mois distincts** d'activité (présence côté A ou B)
+- Fallback **10 mois** si < 6 modèles (non déclenché au run du 2026-06-03)
+
+**Run actuel : 9 modèles** (llama-3.3-70b, llama-3.1-8b, gemma-3-*, etc.)
+
+---
+
+### dispersion_globale vs dispersion_cohorte
+
+| Série | Définition |
+|---|---|
+| `dispersion_globale` | Dispersion sur **tous** les modèles avec ≥100 réponses ce mois |
+| `dispersion_cohorte` | Idem, mais restreint aux 9 modèles de la cohorte stable |
+
+Même z-score, même métrique, même densité → seul le sous-ensemble change.
 
 ---
 
@@ -230,14 +283,16 @@ projection d'effondrement.
 
 ### Thèse retenue (après données)
 
-> Compar:IA **ne montre pas encore** de convergence globale ni d'amplification
-> temporelle du style premium, **mais** reste **vulnérable au style** : le format
-> prédit les votes indépendamment de la qualité déclarée et de la longueur, et
-> des contrefactuels montrent que changer le style renverse le jugement.
+> Compar:IA **ne montre pas** de convergence stylistique sur une **cohorte fixe**
+> (R1-bis : pente cohorte $-0{,}003$, $p = 0{,}71$), ni d'amplification temporelle
+> du style premium (R2bis). La hausse de diversité **globale** (R1) s'explique
+> surtout par l'**élargissement du parc** de modèles (artefact de composition).
+> En revanche, l'arène reste **vulnérable au style** : format, longueur et structure
+> prédisent les votes (R5/R5bis) et des contrefactuels renversent le jugement (R3).
 
 ### Pitch en une phrase
 
-« Pas encore effondré, mais hackable par la forme. »
+« Pas encore effondré, pas de convergence — mais hackable par la forme. »
 
 ---
 
@@ -287,18 +342,80 @@ Les modèles récents se ressemblent-ils de plus en plus stylistiquement ?
 
 ### Interprétation
 
-**H1 refutée** : pas de convergence, **expansion** stylistique.
+**H1 refutée (convergence)** : pas de rapprochement stylistique. **Nuance R1-bis** :
+la hausse globale est en partie un **artefact de composition** ; sur 9 modèles
+stables, la dispersion densifiée est **plate**.
 
 ### Comment répondre
 
-> « On a testé la convergence — elle n'est pas là. L'arène accueille plus de
-> modèles différents, donc la diversité mesurée augmente. Même en contrôlant ça,
-> la pente reste positive. »
+> « R1 brut montre une diversification apparente quand le parc grossit. R1-bis
+> refait le calcul sur une cohorte fixe (Llama, Gemma, etc.) : la dispersion
+> ne bouge pas — ce n'est pas une convergence Goodhart, c'est l'arène qui accueille
+> plus de modèles différents. »
 
 ### Figures / scripts
 
 - `paper/figures/R1_convergence_robustness.png`
 - `scripts/r1_robustness.py`
+
+---
+
+## 4b. R1-bis — Cohorte stable (artefact de composition)
+
+> **Doc factuelle** : [`R1bis_resultats.md`](R1bis_resultats.md) — run 2026-06-03.
+
+### Question
+
+La hausse de diversité R1 est-elle une **vraie divergence** stylistique ou un
+**artefact** dû à l'entrée de nouveaux modèles ?
+
+### Méthode (résumé)
+
+1. Filtre `source == "vote"`, exclut ties, drop NaT (<1 %)
+2. **Densifie** : `feature / assistant_chars` (merge `votes_length.parquet`)
+3. **Cohorte stable** : ≥100 battles totales, ≥12 mois distincts → **9 modèles**
+4. Chaque mois : `dispersion_globale` vs `dispersion_cohorte` (métrique `centroid`, z-score global, ≥100 réponses/modèle/mois)
+5. OLS `dispersion ~ month_idx` sur les deux séries
+
+### Chiffres clés (run 2026-06-03)
+
+| Série | Pente/mois | IC 95 % | p | R² |
+|---|---:|---|---:|---:|
+| **dispersion_globale** | **+0,0384** | [+0,015, +0,062] | **0,005** | 0,567 |
+| **dispersion_cohorte** | **−0,0033** | [−0,022, +0,016] | **0,71** | 0,015 |
+
+**Fenêtre** : 12 mois (2025-02 → 2026-01). **Battles** : 79 075 après filtres.
+
+### Cohorte (9 modèles)
+
+llama-3.1-405b, llama-3.1-8b, llama-3.3-70b, ministral-8b-instruct-2410, phi-4,
+gemma-3-4b/12b/27b, command-a.
+
+### Interprétation (binôme)
+
+- **Globale ↑** : l'arène accueille plus de modèles stylistiquement distincts chaque mois.
+- **Cohorte ≈ flat** : les modèles **historiques** ne convergent pas vers un format unique.
+- **Goodhart stade 1** : non confirmé sur cohorte fixe.
+
+### Comment répondre au jury
+
+> « On a séparé l'effet « plus de modèles » de l'effet « les modèles changent ».
+> Sur une douzaine de modèles présents depuis le début, la dispersion stylistique
+> est stable. La courbe R1 qui monte, c'est surtout la composition de l'arène. »
+
+### Figures / scripts / données
+
+- `paper/figures/R1bis_cohorte_stable.png`
+- `data/processed/dispersion_cohorte.csv`
+- `scripts/r1bis_cohorte_stable.py`
+- `src/compariawatch/diversity.py` (`densify_features`, `select_stable_cohort`, `compute_dispersion_cohorte`)
+
+### Limites R1-bis
+
+- Features **densifiées** → échelle ≠ R1 historique (comptes bruts)
+- Cohorte **n=9** (pas toute l'arène)
+- Fenêtre **12 mois** (cohorte inactive avant 2025-02)
+- Pas d'interprétation causal forte — test de composition
 
 ---
 
@@ -591,7 +708,8 @@ Double mécanisme Goodhart :
 ```
 Mail initial          →  Données           →  Conclusion
 ─────────────────────────────────────────────────────────
-Convergence style     →  R1/R1b            →  NON (hausse)
+Convergence style     →  R1 + R1-bis        →  NON (cohorte stable flat)
+Hausse diversité glob →  R1-bis global      →  artefact composition
 Style premium ↑       →  R2bis             →  NON (stable/↓)
 Effondrement R4       →  abandon           →  pas de tendance
 Part causale style    →  R3                →  OUI (concision)
@@ -600,8 +718,10 @@ Structure vs longueur →  R5bis             →  OUI (décomposition)
 Qui triche ?          →  R6                →  NON (tops formatent +)
 ```
 
-**Histoire finale** : Compar:IA est sain en surface (pas de collapse), mais
-l'arène reste optimisable par la forme — surtout structure markdown et matchups
+**Histoire finale** : Compar:IA ne converge pas stylistiquement sur une cohorte
+fixe (R1-bis). La hausse globale R1 vient surtout de l'élargissement du parc.
+L'arène reste optimisable par la forme — structure markdown, longueur, matchups
+cross-tier (R3/R5/R6).
 déséquilibrés.
 
 ---
@@ -655,8 +775,13 @@ déséquilibrés.
 
 ### « Compar:IA s'effondre ? »
 
-**Non.** R1 montre une diversité croissante, R2bis pas d'amplification du style
-premium. On parle de **vulnérabilité**, pas d'effondrement.
+**Non.** R1-bis : cohorte stable plate (p=0,71). R2bis : pas d'amplification du
+style premium. On parle de **vulnérabilité**, pas d'effondrement.
+
+### « La diversité augmente — c'est pas une convergence Goodhart inversée ? »
+
+**Nuancé.** R1 brut ↑ parce que l'arène accueille plus de modèles (corr n_models=0,83).
+R1-bis : sur 9 modèles fixes, dispersion **stable** — pas de divergence ni convergence.
 
 ### « C'est pas juste Mistral qui juge ? »
 
@@ -665,7 +790,7 @@ premium. On parle de **vulnérabilité**, pas d'effondrement.
 
 ### « Vous avez juste refait Zilinskas ? »
 
-**Non.** Il fait du BT observationnel statique. Nous ajoutons : temporel (R1/R2bis),
+**Non.** Il fait du BT observationnel statique. Nous ajoutons : temporel (R1/R1-bis/R2bis),
 causal (R3), qualité+longueur (R5/R5bis), tiers (R6).
 
 ### « Pourquoi pas comparia-reactions ? »
@@ -722,6 +847,9 @@ cd comparia-hackathon && source .venv/bin/activate
 # R1 robustesse
 python scripts/r1_robustness.py
 
+# R1-bis cohorte stable
+python scripts/r1bis_cohorte_stable.py
+
 # R2bis
 python scripts/r2bis_style_premium.py
 
@@ -760,6 +888,16 @@ python scripts/make_final_tables.py
 | β diversité brute | +0.0572/mois |
 | β contrôlée | +0.0466/mois |
 | corr(diversity, n_models) | +0.826 |
+
+### R1-bis (2026-06-03)
+
+| Metric | Valeur |
+|---|---:|
+| Battles après filtres | 79 075 |
+| Cohorte stable | 9 modèles |
+| Fenêtre | 2025-02 → 2026-01 (12 mois) |
+| β dispersion_globale | +0.0384/mois (p=0.005) |
+| β dispersion_cohorte | −0.0033/mois (p=0.71) |
 
 ### R2bis
 

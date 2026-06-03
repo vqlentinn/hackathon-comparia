@@ -268,3 +268,19 @@ EOF
 )"
 git push
 ```
+
+## Phase R1-bis — Cohorte stable (2026-06-03)
+
+Déjà sur `main` : `3234b80`, `0d2e7be`, `b2d9f0d`.
+
+```bash
+python scripts/r1bis_cohorte_stable.py
+
+git add -f data/processed/dispersion_cohorte.csv paper/figures/R1bis_cohorte_stable.png
+git add docs/R1bis_resultats.md docs/project_status.md docs/pitch_equipe_reference.md
+git add docs/pitch_dust_brief.md paper/main.tex README.md
+git commit -m "$(cat <<'MSG'
+docs(R1-bis): intègre cohorte stable dans paper, pitch et références équipe
+MSG
+)"
+```
