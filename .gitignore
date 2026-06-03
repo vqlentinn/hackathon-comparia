@@ -33,6 +33,10 @@ data/processed/*
 *.parquet
 *.feather
 
+# --- Exports manuels lourds (racine) ---
+aspect_extraction_comparia_conversation_full*.csv
+comparia-*.tar.gz
+
 # --- Sorties ---
 paper/figures/*.png
 paper/figures/*.pdf
