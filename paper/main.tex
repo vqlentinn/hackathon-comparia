@@ -1,0 +1,679 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{natbib}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{siunitx}
+
+% Inclut la figure si le PNG existe, sinon placeholder (figures gitignorées).
+\newcommand{\maybeincludegraphics}[2][]{%
+  \IfFileExists{#2}{%
+    \includegraphics[#1]{#2}%
+  }{%
+    \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\textit{Figure à générer}\\ \small\texttt{#2}}}%
+  }%
+}
+
+\geometry{margin=2.5cm}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue
+}
+
+\title{%
+  \textbf{L'Arène se mord la queue :}\\
+  audit temporel, causal et structurel de la vulnérabilité\\
+  au style sur \emph{Compar:IA} à travers la loi de Goodhart
+}
+
+\author{%
+  Équipe hackathon Compar:IA $\times$ Dauphine PSL\\
+  \textit{Extension du travail de Simon Zilinskas (2026)}
+}
+
+\date{Juin 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Les arènes d'évaluation de grands modèles de langage (LLM) reposent sur des préférences
+humaines pairwise. Lorsqu'un classement devient une cible institutionnelle, la loi de
+Goodhart prédit une dérive vers des \emph{proxies} mesurables --- format markdown,
+longueur, structure --- au détriment de la qualité intrinsèque.
+Nous étendons l'analyse \emph{style-controlled} de \citet{zilinskas2026formatting} sur
+\emph{Compar:IA}, arène francophone de la DINUM ($\approx$145\,000 combats nettoyés,
+89 modèles), selon cinq axes complémentaires : (i)~dynamique temporelle de la diversité
+stylistique (R1) ; (ii)~évolution mensuelle du \emph{style premium} (R2bis) ;
+(iii)~preuve causale par réécritures contrefactuelles et juges LLM (R3) ;
+(iv)~ablation style \emph{vs.} qualité déclarée et longueur (R5/R5bis) ;
+(v)~endogénéité par tier de modèle (R6).
+Nos résultats ne confirment \emph{pas} une convergence stylistique ni une dérive
+temporelle du premium : la diversité \emph{augmente} ($\beta = +0{,}057$ par mois,
+$p < 0{,}001$) et le gras ne monte pas dans le temps ($-1{,}4$ points par mois).
+En revanche, la vulnérabilité au formatage est robuste : contrefactuels concis
+$\rightarrow$ 89--97\,\% de victoires, verboses $\rightarrow$ 21--27\,\% ;
+AUC prédictive du vote passe de 0{,}821 (qualité seule) à 0{,}862 (+ style) ;
+après contrôle qualité+longueur, le gras conserve +14{,}5\,\% d'odds de victoire.
+Les modèles les mieux classés formatent davantage ($r = 0{,}57$ entre rating et score
+de format), excluant une simple stratégie de \emph{gaming} par les modèles faibles.
+\emph{Compar:IA} ne présente pas encore les symptômes d'effondrement d'un benchmark
+Goodhart, mais reste sensible au style --- un risque à anticiper pour toute métrique
+devenue cible.
+\end{abstract}
+
+\noindent\textbf{Mots-clés :} évaluation LLM, arène pairwise, loi de Goodhart, style
+control, Bradley-Terry, inférence causale, Compar:IA.
+
+\section{Introduction}
+\label{sec:intro}
+
+\subsection{Contexte et enjeu}
+
+\emph{Compar:IA} est une plateforme d'évaluation de LLM opérée par la Direction
+interministérielle du numérique (DINUM) et le ministère de la Culture
+\citep{termignon2026comparia}. Deux modèles anonymes répondent au même prompt ;
+l'utilisateur choisit un gagnant ou déclare une égalité. Le classement agrégé
+informe la politique publique francophone en matière d'IA.
+
+Ce mécanisme rejoint la famille des arènes pairwise popularisées par Chatbot Arena
+\citep{chiang2024chatbot,zheng2023judging}. Le signal utilisateur mêle toutefois
+qualité perçue et heuristiques de surface : longueur, markdown, listes, gras
+\citep{zheng2023judging,li2024crowdsourced}.
+
+\subsection{Cadre Goodhart}
+
+La loi de Goodhart \citep{goodhart1975problems,manheim2018categorizing} stipule
+qu'une mesure utilisée comme cible cesse d'être une bonne mesure. Appliquée aux
+benchmarks, elle prévoit trois stades observables \citep{espeland2016engines} :
+(i)~convergence des participants vers les traits corrélés au score ;
+(ii)~hausse du poids des proxies dans le score ;
+(iii)~perte de pouvoir discriminant du benchmark.
+
+Notre question centrale : \emph{Compar:IA} présente-t-il déjà ces signaux, et dans
+quelle mesure le formatage influence-t-il les votes indépendamment de la qualité ?
+
+\subsection{Positionnement par rapport à Zilinskas (2026)}
+
+\citet{zilinskas2026formatting} appliquent pour la première fois le \emph{style
+control} à une arène non anglophone. Sur un instantané de 145\,096 combats, ils
+estiment un modèle de Bradley-Terry \citep{bradley1952rank} où chaque feature de
+formatage entre linéairement :
+\begin{equation}
+  \mathbb{P}(\text{A bat B}) = \sigma\!\left(\beta_A - \beta_B + \sum_f \gamma_f \,\Delta f_{AB}\right),
+  \label{eq:bt}
+\end{equation}
+avec $\Delta f_{AB} = f_A - f_B$ standardisé. Ils trouvent des premiums de
++16--19\,\% par écart-type pour le gras, les listes et les en-têtes ; 76 modèles
+changent significativement de rang après correction FDR \citep{benjamini1995controlling},
+mais la corrélation globale des classements reste élevée ($r = 0{,}976$).
+
+Nous \textbf{prolongeons} ce travail sans le contredire, en ajoutant :
+\begin{enumerate}[noitemsep]
+  \item une dimension \textbf{temporelle} (R1, R2bis) absente du papier original ;
+  \item une dimension \textbf{causale} par contrefactuels (R3) ;
+  \item une décomposition \textbf{qualité / longueur / structure} (R5, R5bis) ;
+  \item une analyse d'\textbf{endogénéité} par tier de performance (R6).
+\end{enumerate}
+
+\subsection{Thèse empirique retenue}
+
+L'hypothèse initiale du hackathon --- effondrement imminent et convergence
+stylistique --- n'est \emph{pas} confirmée par les données. La thèse retenue est
+plus nuancée :
+
+\begin{quote}
+\emph{Compar:IA} ne montre pas encore les symptômes d'un benchmark en
+effondrement Goodhart, mais reste \textbf{vulnérable au style} --- observationnellement
+(R5/R5bis/R6) et causalement (R3).
+\end{quote}
+
+Le module prospectif R4 (forecast d'effondrement) a été abandonné faute de tendance
+à projeter.
+
+\subsection{Plan de l'article}
+
+La Section~\ref{sec:data} décrit les données. La Section~\ref{sec:methods} détaille
+les méthodes et calculs. La Section~\ref{sec:results} présente les résultats module
+par module. Les Sections~\ref{sec:discussion}--\ref{sec:conclusion} discutent les
+implications, limites et conclusions.
+
+\section{Données}
+\label{sec:data}
+
+\subsection{Sources}
+
+Nous réutilisons le corpus nettoyé de \citet{zilinskas2026formatting}, publié sur
+HuggingFace (\texttt{ministere-culture/comparia-votes}). Après filtrage (paires
+identiques, doublons, combats sans texte visible pour modèles \emph{reasoning}),
+il reste \textbf{145\,096 combats} impliquant \textbf{89 modèles} avec $\geq 100$
+combats chacun, sur 16 mois (octobre 2024 -- janvier 2026).
+
+\subsection{Variables observées}
+
+Pour chaque combat entre modèles $A$ et $B$ sur un prompt $p$ :
+\begin{itemize}[noitemsep]
+  \item \textbf{Outcome} $y \in \{A, B, \text{tie}\}$ ;
+  \item \textbf{Textes} de réponse $r_A, r_B$ ;
+  \item \textbf{Métadonnées} : date, mode d'arène (\emph{random}, \emph{custom}, etc.) ;
+  \item \textbf{Attributs qualité déclarés} (sous-ensemble) : clarté, exactitude,
+        utilité, etc., annotés post-vote par l'utilisateur.
+\end{itemize}
+
+\subsection{Features stylistiques}
+
+Cinq features de surface sont extraites par expressions régulières sur $r$ :
+
+\begin{table}[H]
+\centering
+\caption{Features stylistiques (identiques à Zilinskas).}
+\label{tab:features}
+\begin{tabular}{lll}
+\toprule
+Feature & Description & Exemple \\
+\midrule
+\texttt{headers} & lignes commençant par \# & \texttt{\# Titre} \\
+\texttt{lists} & puces ou numérotations & \texttt{- item}, \texttt{1. item} \\
+\texttt{bold} & gras markdown & \texttt{**texte**} \\
+\texttt{code\_blocks} & blocs de code & \texttt{```python ... ```} \\
+\texttt{emoji} & caractères emoji Unicode & \texttt{:smile:} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Pour chaque feature $f$, on calcule un compte brut $f(r)$ puis, par combat,
+le différentiel $\Delta f = f(r_A) - f(r_B)$. Les versions standardisées
+$\Delta f_z$ utilisent la moyenne et l'écart-type empiriques sur l'échantillon.
+
+\subsection{Features qualité et longueur (R5/R5bis)}
+
+Pour R5, nous agrégeons les attributs qualité déclarés en un score
+\texttt{quality\_total} (somme des indicateurs binaires positifs par réponse).
+Pour R5bis, nous ajoutons $\Delta \log(1 + |r|)$ où $|r|$ est la longueur en
+caractères de la réponse assistant (proxy de verbosité, distinct des tokens HF).
+
+\subsection{Échantillons par module}
+
+\begin{table}[H]
+\centering
+\caption{Tailles d'échantillon effectives par module.}
+\label{tab:samples}
+\begin{tabular}{lrl}
+\toprule
+Module & $N$ & Description \\
+\midrule
+R1 / R1b & 145\,096 & diversité mensuelle, tous combats \\
+R2bis & 145\,096 & BT mensuel style-controlled \\
+R3 & 100 / 75 & contrefactuels (Mistral seul / ensemble 2 juges) \\
+R5 & 79\,073 & combats avec labels qualité \\
+R5bis & 79\,073 & idem + longueur \\
+R6 & 89 modèles & tiers depuis ratings Zilinskas \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Méthodes}
+\label{sec:methods}
+
+\subsection{R1 --- Diversité stylistique temporelle}
+
+\subsubsection{Indicateur de diversité}
+
+Pour chaque mois $t$, on calcule le centroïde stylistique de chaque modèle $i$ :
+$\bar{\mathbf{f}}_{i,t} = \mathbb{E}[f(r) \mid \text{modèle } i, \text{ mois } t]$.
+La diversité du mois est la distance moyenne pairwise entre centroïdes actifs :
+\begin{equation}
+  D_t = \frac{2}{M_t(M_t-1)} \sum_{i<j} \|\bar{\mathbf{f}}_{i,t} - \bar{\mathbf{f}}_{j,t}\|_2.
+\end{equation}
+
+Une \textbf{baisse} de $D_t$ signalerait une convergence stylistique (symptôme
+Goodhart de stade~1). Nous testons aussi la distance de Wasserstein-2 entre
+distributions mensuelles de vecteurs stylistiques.
+
+\subsubsection{Régression temporelle}
+
+Régression OLS :
+\begin{equation}
+  D_t = \alpha + \beta \cdot \text{month\_idx}_t + \varepsilon_t,
+\end{equation}
+où $\text{month\_idx}$ est l'index entier du mois depuis l'origine.
+$\beta < 0$ compatible avec convergence ; $\beta > 0$ avec diversification.
+
+\subsubsection{Robustesse (R1b)}
+
+Contrôles additionnels : nombre de modèles actifs par mois, volume de combats,
+effets fixes de mode d'arène.
+
+\subsection{R2bis --- Style premium longitudinal}
+
+\subsubsection{Modèle BT mensuel}
+
+Chaque mois $t$, on estime \eqref{eq:bt} par maximum de vraisemblance sur les
+combats du mois (ties exclus ou modélisés selon variante). Le coefficient
+$\gamma_{f,t}$ mesure le \emph{style premium} de la feature $f$ au mois $t$.
+
+\subsubsection{Interprétation en odds}
+
+\begin{equation}
+  \text{Premium}_f(\%) = \left(e^{\gamma_f} - 1\right) \times 100.
+  \label{eq:premium}
+\end{equation}
+
+Un premium de +20\,\% signifie : si $A$ a un écart-type de gras de plus que $B$,
+ses odds de victoire augmentent d'environ 20\,\%.
+
+\subsubsection{Tendance temporelle}
+
+Régression de $\gamma_{f,t}$ (ou $\text{Premium}_f$) sur $\text{month\_idx}$ pour
+tester si le marché \emph{récompense de plus en plus} le formatage (stade~2 Goodhart).
+
+\subsection{R3 --- Contrefactuels causaux}
+
+\subsubsection{Protocole}
+
+Pour isoler l'effet \emph{causal} du formatage, nous sélectionnons des réponses
+neutres (peu de markdown), puis les réécrivons selon deux traitements :
+\begin{itemize}[noitemsep]
+  \item \textbf{Concise\_direct} : réponse courte, sans structure markdown ;
+  \item \textbf{Verbose\_markdown} : réponse longue, listes, gras, en-têtes.
+\end{itemize}
+Le contenu sémantique est préservé au maximum ; seul le format change.
+
+\subsubsection{Juges LLM}
+
+Deux juges évaluent chaque triplet (prompt, réponse A, réponse B) :
+\begin{itemize}[noitemsep]
+  \item \textbf{Mistral Large} (API Mistral) ;
+  \item \textbf{Llama-3.3-70B} (API Groq).
+\end{itemize}
+
+\subsubsection{Filtre de similarité sémantique}
+
+Pour éviter que le juge tranche sur un changement de contenu, nous exigeons
+$\cos(\text{emb}_A, \text{emb}_B) \geq 0{,}85$ (embeddings sentence-transformers).
+
+\subsubsection{Statistiques}
+
+Taux de victoire du traitement avec intervalle de confiance de Wilson
+\citep{wilson1927probable} à 95\,\%. Accord inter-juges : Cohen's $\kappa$
+\citep{cohen1960coefficient} et taux de victoire sur les paires où les deux juges
+sont valides et d'accord sur la comparaison.
+
+L'effet causal estimé (ATE) pour le traitement $T \in \{\text{concise}, \text{verbose}\}$ :
+\begin{equation}
+  \widehat{\text{ATE}}_T = \frac{1}{N}\sum_{i=1}^{N} \mathbb{1}[\text{juge préfère } T^{(i)}].
+\end{equation}
+
+\subsection{R5 --- Style \emph{vs.} qualité déclarée}
+
+\subsubsection{Modèle logistique}
+
+Sur les combats avec attributs qualité, outcome binaire $y_i = 1$ si A gagne :
+\begin{equation}
+  \log\frac{p_i}{1-p_i} = \beta_0 + \beta_q Q_i + \sum_f \beta_f \Delta f_{i} + \varepsilon_i,
+  \label{eq:logit}
+\end{equation}
+où $Q_i$ est le différentiel de score qualité agrégé.
+
+\subsubsection{Ablations et AUC}
+
+Nous comparons l'AUC in-sample de plusieurs spécifications :
+qualité seule, style seul, qualité+style, avec interactions temporelles.
+L'\textbf{incrément} $\Delta\text{AUC}$ mesure le gain prédictif du style \emph{après}
+contrôle de la qualité déclarée.
+
+\subsubsection{Coefficients marginaux}
+
+Les odds ratios par feature :
+$\text{OR}_f = e^{\beta_f}$, interprétés comme en \eqref{eq:premium}.
+
+\subsection{R5bis --- Structure \emph{vs.} longueur}
+
+R5bis étend \eqref{eq:logit} :
+\begin{equation}
+  \log\frac{p_i}{1-p_i} = \beta_0 + \beta_q Q_i + \beta_l \Delta\log(1+|r|)_i + \sum_f \beta_f \Delta f_i.
+  \label{eq:logit-r5bis}
+\end{equation}
+
+Objectif : vérifier si le premium de structure (gras, listes\ldots) persiste une
+fois la longueur contrôlée --- réconciliant R3 (effet massif du format) et R5
+(qualité domine en AUC).
+
+\subsection{R6 --- Endogénéité par tier}
+
+\subsubsection{Construction des tiers}
+
+Les modèles sont stratifiés en quartiles selon le rating Bradley-Terry de
+Zilinskas (JSON de ratings style-controlled).
+
+\subsubsection{Statistiques}
+
+\begin{itemize}[noitemsep]
+  \item Corrélation de Pearson $r$ entre rating et score de format moyen ;
+  \item Différence de premium gras entre top et bottom tier ;
+  \item Régression avec interaction $\gamma_f \times \text{tier}$.
+\end{itemize}
+
+Si seuls les modèles faibles \emph{gameaient} le formatage, on s'attendrait à un
+premium concentré en bas de classement. L'hypothèse alternative (modèles forts
+mieux formatés \emph{et} sur-récompensés) prédit $r > 0$ et premium croissant avec le tier.
+
+\section{Résultats}
+\label{sec:results}
+
+\subsection{R1 --- Pas de convergence stylistique}
+
+La diversité $D_t$ \textbf{augmente} dans le temps (Figure~\ref{fig:r1}) :
+\begin{equation}
+  \hat{\beta} = +0{,}057 \text{ par mois}, \quad p < 0{,}001.
+\end{equation}
+
+Après contrôles (R1b), le signe positif persiste. La distance de Wasserstein entre
+mois consécutifs ne montre pas de contraction systématique.
+
+\begin{figure}[H]
+  \centering
+  \maybeincludegraphics[width=0.85\textwidth]{figures/R1_convergence_robustness.png}
+  \caption{Diversité stylistique mensuelle (R1). Tendance positive : pas de convergence
+  vers un format unique.}
+  \label{fig:r1}
+\end{figure}
+
+\textbf{Interprétation.} Le stade~1 Goodhart (convergence) n'est pas observé ; les
+modèles restent stylistiquement distincts, voire plus dispersés.
+
+\subsection{R2bis --- Premium élevé mais stable dans le temps}
+
+En niveau, le style premium est \textbf{fort} et cohérent avec Zilinskas : le gras
+vaut environ +20\,\% d'odds par écart-type (Figure~\ref{fig:r2bis}).
+
+En revanche, la pente temporelle du premium gras est \textbf{négative} :
+$\hat{\beta} = -1{,}4$ points de premium par mois --- le formatage ne gagne \emph{pas}
+en influence relative au fil des mois.
+
+\begin{figure}[H]
+  \centering
+  \maybeincludegraphics[width=0.85\textwidth]{figures/R2bis_style_premium_longitudinal.png}
+  \caption{Évolution mensuelle du style premium (R2bis). Niveau élevé, pente non positive.}
+  \label{fig:r2bis}
+\end{figure}
+
+\textbf{Interprétation.} Vulnérabilité structurelle au style (niveau), sans dérive
+temporelle du type stade~2 Goodhart.
+
+\subsection{R3 --- Preuve causale}
+
+Table~\ref{tab:r3} et Figure~\ref{fig:r3} résument les contrefactuels.
+
+\begin{table}[H]
+\centering
+\caption{Résultats contrefactuels (R3). IC 95\,\% Wilson.}
+\label{tab:r3}
+\begin{tabular}{lrrrrr}
+\toprule
+Comparaison & $N$ & Mistral & Llama-70B & Accord 2/2 & IC accord \\
+\midrule
+Concise vs neutre & 45 & 88{,}9\,\% & 90{,}9\,\% & 97{,}3\,\% & [86, 100] \\
+Verbose vs neutre & 30 & 26{,}7\,\% & 33{,}3\,\% & 26{,}9\,\% & [14, 46] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \maybeincludegraphics[width=0.85\textwidth]{figures/R3_ensemble_judge.png}
+  \caption{Taux de victoire par traitement et juge (R3). $\kappa(\text{Mistral}, \text{Llama-70B}) = 0{,}67$.}
+  \label{fig:r3}
+\end{figure}
+
+Changer \emph{uniquement} le format suffit à inverser massivement les préférences :
+concis bat neutre dans $\approx$90--97\,\% des cas ; verbose \emph{perd} contre neutre
+($\approx$27\,\%). L'accord inter-juges est substantiel ($\kappa = 0{,}67$).
+
+\textbf{Limites.} Juges LLM, non utilisateurs Compar:IA ; $N$ modeste mais effets
+très grands.
+
+\subsection{R5 --- Le style ajoute de l'AUC au-delà de la qualité}
+
+Table~\ref{tab:r5auc} : ablation AUC in-sample sur 79\,073 combats.
+
+\begin{table}[H]
+\centering
+\caption{AUC in-sample par spécification logistique (R5).}
+\label{tab:r5auc}
+\begin{tabular}{lrr}
+\toprule
+Spécification & AUC & $d$ features \\
+\midrule
+Style seul (agrégé) & 0{,}667 & 1 \\
+Style seul (composantes) & 0{,}669 & 5 \\
+Qualité seule (agrégé) & 0{,}811 & 1 \\
+Qualité seule (composantes) & 0{,}821 & 7 \\
+Qualité + style (agrégé) & 0{,}858 & 2 \\
+Qualité + style (composantes) & 0{,}862 & 12 \\
+Qualité + style + interactions mois & 0{,}863 & 17 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La qualité déclarée domine ($\text{AUC}_q = 0{,}821$), mais le style apporte
+$+0{,}041$ AUC. Après contrôle qualité, le gras conserve $\approx +30{,}6\,\%$
+d'odds de victoire (Figure~\ref{fig:r5}).
+
+\begin{figure}[H]
+  \centering
+  \maybeincludegraphics[width=0.85\textwidth]{figures/R5_style_vs_quality.png}
+  \caption{Coefficients style marginaux après contrôle qualité (R5).}
+  \label{fig:r5}
+\end{figure}
+
+\subsection{R5bis --- Structure vs longueur}
+
+Une fois qualité \emph{et} $\Delta\log(1+|r|)$ contrôlés (Table~\ref{tab:r5bis}) :
+
+\begin{table}[H]
+\centering
+\caption{R5bis : ablation structure vs longueur ($N = 79\,073$).}
+\label{tab:r5bis}
+\begin{tabular}{lrr}
+\toprule
+Spécification & AUC & Premium gras résiduel \\
+\midrule
+Qualité + longueur & 0{,}865 & --- \\
+Qualité + longueur + style & 0{,}865 & +14{,}5\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La longueur explique une partie de l'effet «~verbose~» de R3 (+40{,}5\,\% odds pour
+$\Delta\log(1+|r|)$), mais le gras conserve un premium de +14{,}5\,\%.
+R3 et R5 se réconcilient : format \emph{et} longueur opèrent, qualité reste le
+prédicteur dominant en AUC.
+
+\begin{figure}[H]
+  \centering
+  \maybeincludegraphics[width=0.85\textwidth]{figures/R5bis_structure_vs_length.png}
+  \caption{Décomposition structure vs longueur (R5bis).}
+  \label{fig:r5bis}
+\end{figure}
+
+\subsection{R6 --- Les tops formatent plus (pas un gaming des faibles)}
+
+\begin{itemize}[noitemsep]
+  \item $r(\text{rating}, \text{format score}) = 0{,}57$ ;
+  \item premium gras : bottom tier vs top tier = +41{,}6 points ;
+  \item les modèles bien classés produisent \emph{plus} de markdown, et en
+        bénéficient davantage.
+\end{itemize}
+
+\begin{figure}[H]
+  \centering
+  \maybeincludegraphics[width=0.85\textwidth]{figures/R6_endogeneity_tiers.png}
+  \caption{Style premium et formatage moyen par tier de rating (R6).}
+  \label{fig:r6}
+\end{figure}
+
+\textbf{Interprétation.} L'endogénéité est \emph{symétrique} : le biais de formatage
+n'est pas l'apanage des modèles faibles tentant de compenser ; il touche aussi les
+leaders dont le style est à la fois plus riche et mieux récompensé.
+
+\subsection{Synthèse des modules}
+
+\begin{table}[H]
+\centering
+\caption{Cartographie des résultats et lien avec Goodhart.}
+\label{tab:synth}
+\small
+\begin{tabular}{llll}
+\toprule
+Module & Question & Résultat & Stade Goodhart \\
+\midrule
+R1 & Convergence ? & Diversité $\uparrow$ & Stade 1 : non \\
+R2bis & Premium $\uparrow$ dans le temps ? & Niveau haut, pente $\leq 0$ & Stade 2 : non \\
+R3 & Format cause-t-il le vote ? & Oui (large ATE) & Vulnérabilité \\
+R5/R5bis & Au-delà qualité+longueur ? & Oui (+14--31\,\% gras) & Vulnérabilité \\
+R6 & Gaming des faibles ? & Non ($r=0{,}57$) & Nuance \\
+R4 & Effondrement imminent ? & Abandonné & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Ce que nous apprenons sur Compar:IA}
+
+Trois messages pour les responsables de la plateforme :
+\begin{enumerate}
+  \item \textbf{Pas de panique temporelle} : ni convergence ni inflation récente
+        du premium ; le benchmark n'est pas en train de s'effondrer \emph{observablement}.
+  \item \textbf{Vulnérabilité réelle} : formatage et longueur influencent les votes
+        causalement et prédictivement, même contrôlant la qualité déclarée.
+  \item \textbf{Biais structurel} : les modèles en tête de classement sont aussi
+        ceux qui formatent le plus ; un simple contrôle style ne suffit pas à
+        «~corriger~» le classement sans modèle causal plus fin.
+\end{enumerate}
+
+\subsection{Structure vs longueur}
+
+R3 montrait un contraste concis/verbose extrême ; R5 montrait la domination de la
+qualité en AUC. R5bis montre que ces résultats ne se contredisent pas : la longueur
+est un mediateur majeur, mais la structure markdown conserve un effet propre ---
+exactement le pattern rapporté par LMSYS Style Control sur données anglaises
+\citep{li2024crowdsourced}.
+
+\subsection{Qualité déclarée comme confondant}
+
+Les labels qualité sont \emph{post-vote} et corrélés à la préférence. R5 contrôle
+ce biais observable ; il ne capture pas la qualité non déclarée. L'AUC de 0{,}862
+reste in-sample ; une validation croisée temporelle serait nécessaire pour une
+ généralisation out-of-sample.
+
+\subsection{Recommandations}
+
+\begin{enumerate}
+  \item Publier des classements \emph{style-controlled} aux côtés des classements bruts
+        (suivre Zilinskas) ;
+  \item Randomiser ou normaliser la longueur dans une fraction des combats ;
+  \item Monitorer $D_t$ et $\gamma_{f,t}$ mensuellement comme \emph{early warnings} ;
+  \item Compléter les juges LLM (R3) par des contrefactuels annotés par utilisateurs réels.
+\end{enumerate}
+
+\section{Limites}
+\label{sec:limits}
+
+\begin{itemize}
+  \item \textbf{Labels qualité post-hoc} (R5) : biais de cohérence avec le vote.
+  \item \textbf{AUC in-sample} : optimisme possible ; pas de split temporel strict.
+  \item \textbf{R3 juges LLM} : externalité limitée vers votes humains Compar:IA.
+  \item \textbf{Longueur en caractères} (R5bis) : pas en tokens ; corrélation forte
+        mais imparfaite avec la facturation API.
+  \item \textbf{Tiers R6} : ratings importés du snapshot Zilinskas, non ré-estimés
+        mensuellement.
+  \item \textbf{Causalité R3} : réécritures automatiques ; filtre cosine $\geq 0{,}85$
+        arbitraire.
+  \item \textbf{16 mois} : fenêtre courte pour des phénomènes Goodhart lents
+        \citep{espeland2016engines}.
+\end{itemize}
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+Ce travail prolonge l'audit de \citet{zilinskas2026formatting} sur \emph{Compar:IA}
+selon une grille temporelle, causale et structurelle inspirée de la loi de Goodhart.
+Les données \textbf{ne montrent pas} une convergence stylistique ni une dérive
+temporelle du style premium ; elles \textbf{montrent} une sensibilité persistante
+au formatage --- causalement (R3), prédictivement (R5/R5bis) et corrélée au rang
+(R6).
+
+Pour la gouvernance des benchmarks LLM, la leçon est proactive : un classement peut
+rester stable en corrélation ($r = 0{,}976$ chez Zilinskas) tout en restant
+gameable sur la marge. \emph{Compar:IA} n'a pas encore «~mordu sa queue~», mais
+l'arène récompense déjà des proxies de surface --- il est temps de construire des
+garde-fous avant qu'une cible explicite ne transforme ces vulnérabilités en
+stratégie d'optimisation.
+
+\section*{Remerciements}
+
+Nous remercions Simon Zilinskas pour son travail préalable, le partage de code et
+de données, ainsi que l'équipe Compar:IA/DINUM pour la mise à disposition des jeux
+de données ouverts.
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\appendix
+
+\section{Formules complémentaires}
+\label{app:formulas}
+
+\subsection{Intervalle de Wilson}
+
+Pour $k$ succès sur $n$ essais, avec $z = 1{,}96$ :
+\begin{align}
+  \tilde{p} &= \frac{k + z^2/2}{n + z^2}, \\
+  \text{IC}_{95\%} &= \tilde{p} \pm \frac{z}{n + z^2}\sqrt{\frac{k(n-k)}{n} + \frac{z^2}{4}}.
+\end{align}
+
+\subsection{Cohen's $\kappa$}
+
+\begin{equation}
+  \kappa = \frac{p_o - p_e}{1 - p_e},
+\end{equation}
+où $p_o$ est l'accord observé et $p_e$ l'accord attendu par indépendance.
+
+\subsection{Distance de Wasserstein (R1)}
+
+Pour deux distributions empiriques $\hat{\mu}_t, \hat{\mu}_{t+1}$ sur les vecteurs
+stylistiques :
+\begin{equation}
+  W_2(\hat{\mu}_t, \hat{\mu}_{t+1}) = \left(\inf_{\gamma \in \Gamma} \mathbb{E}_{(x,y)\sim\gamma}\|x-y\|_2^2\right)^{1/2}.
+\end{equation}
+
+\section{Reproduction des résultats}
+\label{app:repro}
+
+Scripts principaux (répertoire \texttt{scripts/}) :
+\begin{itemize}[noitemsep]
+  \item \texttt{r1\_robustness.py}, \texttt{r2bis\_style\_premium.py}
+  \item \texttt{r3\_ensemble\_judge.py}, \texttt{r5\_style\_vs\_quality.py}
+  \item \texttt{r5bis\_structure\_vs\_length.py}, \texttt{r6\_endogeneity\_tiers.py}
+\end{itemize}
+
+Données : \texttt{data/raw/hf/comparia-votes/votes.parquet}.
+Figures : \texttt{paper/figures/}. Tables : \texttt{paper/tables/}.
+
+\end{document}
